@@ -5,7 +5,7 @@ import sharp from "sharp"
 import ffmpeg from "fluent-ffmpeg"
 import { v4 as uuidv4 } from "uuid"
 import { fileTypeFromFile } from "file-type"; // Use named import
-import { initClamAV } from "./clamav"
+import { initClamAV } from "./clamav.js"
 
 const readFileAsync = promisify(fs.readFile)
 
@@ -54,7 +54,7 @@ export const sanitizeFile = async (filePath) => {
         reason: "Unsupported file type",
       };
     }
-    
+
     const ClamScan = await initClamAV();
 
     // Scan file for viruses
