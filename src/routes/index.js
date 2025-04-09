@@ -8,7 +8,7 @@ import groupRoutes from "./groupRoutes.js"
 import groupMessageRoutes from "./groupMessageRoutes.js"
 import communityRoutes from "./communityRoutes.js"
 import channelMessageRoutes from "./channelMessageRoutes.js"
-import statusUpdateRoutes from "./statusRoutes.js"
+import statusUpdateRoutes from "./statusUpdateRoutes.js"
 
 const router = express.Router()
 
@@ -22,5 +22,6 @@ router.use("/group-messages", groupMessageRoutes)
 router.use("/communities", communityRoutes)
 router.use("/channel-messages", channelMessageRoutes)
 router.use("/statuses", statusUpdateRoutes)
+
 
 export default router

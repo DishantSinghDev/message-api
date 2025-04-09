@@ -74,6 +74,8 @@ A production-ready, fast, and secure messaging API similar to WhatsApp with adva
 - `POST /api/messages/react` - React to a message
 - `POST /api/messages/delete` - Delete a message
 - `POST /api/messages/schedule` - Schedule a message
+- `POST /api/status` - Update message status
+- `GET /api/status/:messageId` - Get message status
 
 ### Group Management
 - `POST /api/groups/create` - Create a new group
@@ -117,10 +119,6 @@ A production-ready, fast, and secure messaging API similar to WhatsApp with adva
 ### Media
 - `POST /api/media/upload` - Upload media file
 - `GET /api/media/:fileId` - Get media file
-
-### Status
-- `POST /api/status` - Update message status
-- `GET /api/status/:messageId` - Get message status
 
 ### Analytics
 - `GET /api/analytics/user/:userId` - Get user statistics
