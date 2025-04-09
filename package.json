@@ -15,6 +15,7 @@
     "dotenv": "latest",
     "express": "latest",
     "express-rate-limit": "latest",
+    "file-type": "^20.4.1",
     "fluent-ffmpeg": "latest",
     "fs": "latest",
     "helmet": "latest",
