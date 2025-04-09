@@ -5,7 +5,7 @@ import sharp from "sharp"
 import ffmpeg from "fluent-ffmpeg"
 import { v4 as uuidv4 } from "uuid"
 import { fileTypeFromFile } from "file-type"; // Use named import
-import clamav from "clamscan"; // Example virus scanning library
+import { initClamAV } from "./clamav"
 
 const readFileAsync = promisify(fs.readFile)
 const writeFileAsync = promisify(fs.writeFile)
@@ -18,20 +18,11 @@ if (!fs.existsSync(thumbnailDir)) {
 }
 
 
-// Initialize ClamAV scanner (ensure ClamAV is installed and configured on your system)
-const clamscan = new clamav({
-  removeInfected: false, // Do not remove infected files automatically
-  quarantineInfected: false, // Do not move infected files
-  scanLog: null, // Optional: Path to a log file
-  debugMode: false, // Optional: Enable debug mode
-  fileList: null, // Optional: Path to a file containing a list of files to scan
-  scanRecursively: false, // Optional: Scan directories recursively
-  clamdscan: {
-    socket: false, // Optional: Path to a ClamD socket
-    host: "127.0.0.1", // Optional: ClamD host
-    port: 3310, // Optional: ClamD port
-  },
-});
+// in your main app
+const ClamScan = await initClamAV();
+
+
+
 
 export const sanitizeFile = async (filePath) => {
   try {
@@ -73,7 +64,9 @@ export const sanitizeFile = async (filePath) => {
     }
 
     // Scan file for viruses
-    const isInfected = await clamscan.isInfected(filePath);
+    const isInfected = await ClamScan.isInfected(filePath);
+
+    
     if (isInfected) {
       return {
         safe: false,
