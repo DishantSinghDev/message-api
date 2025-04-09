@@ -9,7 +9,7 @@ const registrationSchema = Joi.object({
 // Validation schema for sending messages
 const messageSchema = Joi.object({
   senderId: Joi.string().required(),
-  recipientId: Joi.string().required(),
+  recipientId: Joi.string(),
   content: Joi.string().required(),
   type: Joi.string().valid("text", "image", "video", "audio", "document", "link"),
   mediaId: Joi.string().allow(null, ""),
