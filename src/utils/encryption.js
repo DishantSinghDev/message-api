@@ -74,15 +74,15 @@ export const encryptGroupMessage = async (message, members) => {
     const { userId } = member;
 
     // Fetch the member's public key from your database or key store
-    const publicKey = await User.findById(userId).select("publicKey");
-    if (!publicKey) {
+    const user = await User.findById(userId).select("publicKey");
+    if (!user || !user.publicKey) {
       throw new Error(`Public key not found for user ID: ${userId}`);
     }
 
     // Encrypt the symmetric key with the member's public key
     const encryptedKey = crypto.publicEncrypt(
       {
-        key: publicKey,
+        key: user.publicKey,
         padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
       },
       symmetricKey
