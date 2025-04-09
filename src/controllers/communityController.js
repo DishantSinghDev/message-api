@@ -554,12 +554,6 @@ export const getCommunityChannels = async (req, res, next) => {
 export const getUserCommunities = async (req, res, next) => {
   try {
     const { userId } = req.params
-
-    // Try to get from Redis first
-    const commun  => 
-  try {
-    const { userId } = req.params
-
     // Try to get from Redis first
     const communityIds = await redisClient.smembers(`user:${userId}:communities`)
 
@@ -626,3 +620,4 @@ export const getUserCommunities = async (req, res, next) => {
   } catch (error) {
     next(error)
   }
+}

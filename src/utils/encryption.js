@@ -58,26 +58,40 @@ export const encryptMessage = async (message, publicKey) => {
 
 // Encrypt message for a group (encrypt once for each member)
 export const encryptGroupMessage = async (message, members) => {
-  // In a real implementation, you would:
-  // 1. Get each member's public key
-  // 2. Encrypt the message with a symmetric key
-  // 3. Encrypt the symmetric key with each member's public key
-  // 4. Store all encrypted keys with the message
+  // Generate a random AES key for symmetric encryption
+  const symmetricKey = crypto.randomBytes(32);
+  const iv = crypto.randomBytes(16);
 
-  // For simplicity in this demo, we'll just encrypt with a shared key
-  const sharedKey = crypto.randomBytes(32)
-  const iv = crypto.randomBytes(16)
-  const cipher = crypto.createCipheriv("aes-256-cbc", sharedKey, iv)
-  let encryptedMessage = cipher.update(message, "utf8", "base64")
-  encryptedMessage += cipher.final("base64")
+  // Encrypt the message with the symmetric key
+  const cipher = crypto.createCipheriv("aes-256-cbc", symmetricKey, iv);
+  let encryptedMessage = cipher.update(message, "utf8", "base64");
+  encryptedMessage += cipher.final("base64");
 
+  // Encrypt the symmetric key with each member's public key
+  const encryptedKeys = {};
+  for (const member of members) {
+    const { id, publicKey } = member;
+
+    // Encrypt the symmetric key with the member's public key
+    const encryptedKey = crypto.publicEncrypt(
+      {
+        key: publicKey,
+        padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+      },
+      symmetricKey
+    );
+
+    // Store the encrypted key for the member
+    encryptedKeys[id] = encryptedKey.toString("base64");
+  }
+
+  // Return the encrypted message, IV, and encrypted keys
   return JSON.stringify({
     message: encryptedMessage,
     iv: iv.toString("base64"),
-    // In a real implementation, you would include encrypted keys for each member
-    // encryptedKeys: { memberId1: encryptedKey1, memberId2: encryptedKey2, ... }
-  })
-}
+    encryptedKeys,
+  });
+};
 
 // Decrypt message with recipient's private key
 export const decryptMessage = async (encryptedData, privateKey) => {
