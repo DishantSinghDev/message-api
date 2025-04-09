@@ -36,6 +36,8 @@ app.use(
   }),
 )
 
+app.set('trust proxy', true)
+
 // Rate limiting
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes

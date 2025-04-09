@@ -5,7 +5,7 @@ export const rateLimiter = (identifier, maxRequests, timeWindowSeconds) => {
   return async (req, res, next) => {
     try {
       // Get client IP or user ID if authenticated
-      const clientId = req.body.userId || req.ip
+      const clientId = (req.body && req.body.userId) || req.ip
       const key = `ratelimit:${identifier}:${clientId}`
 
       // Get current count
