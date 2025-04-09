@@ -8,20 +8,12 @@ import { fileTypeFromFile } from "file-type"; // Use named import
 import { initClamAV } from "./clamav"
 
 const readFileAsync = promisify(fs.readFile)
-const writeFileAsync = promisify(fs.writeFile)
-const unlinkAsync = promisify(fs.unlink)
 
 // Ensure thumbnails directory exists
 const thumbnailDir = path.join(process.cwd(), "uploads", "thumbnails")
 if (!fs.existsSync(thumbnailDir)) {
   fs.mkdirSync(thumbnailDir, { recursive: true })
 }
-
-
-// in your main app
-const ClamScan = await initClamAV();
-
-
 
 
 export const sanitizeFile = async (filePath) => {
@@ -62,11 +54,14 @@ export const sanitizeFile = async (filePath) => {
         reason: "Unsupported file type",
       };
     }
+    
+    const ClamScan = await initClamAV();
 
     // Scan file for viruses
     const isInfected = await ClamScan.isInfected(filePath);
 
     
+
     if (isInfected) {
       return {
         safe: false,
