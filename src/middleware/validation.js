@@ -9,7 +9,7 @@ const registrationSchema = Joi.object({
 // Validation schema for sending messages
 const messageSchema = Joi.object({
   senderId: Joi.string().required(),
-  recipientId: Joi.string(),
+  recipientId: Joi.string().required(),
   content: Joi.string().required(),
   type: Joi.string().valid("text", "image", "video", "audio", "document", "link"),
   mediaId: Joi.string().allow(null, ""),
@@ -33,6 +33,29 @@ export const validateRegistration = (req, res, next) => {
 // Middleware for validating messages
 export const validateMessage = (req, res, next) => {
   const { error } = messageSchema.validate(req.body)
+
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.details[0].message,
+    })
+  }
+
+  next()
+}
+// Validation schema for group messages
+const groupMessageSchema = Joi.object({
+  senderId: Joi.string().required(),
+  groupId: Joi.string().required(),
+  content: Joi.string().required(),
+  type: Joi.string().valid("text", "image", "video", "audio", "document", "link"),
+  mediaId: Joi.string().allow(null, ""),
+  replyToId: Joi.string().allow(null, ""),
+})
+
+// Middleware for validating group messages
+export const validateGroupMessage = (req, res, next) => {
+  const { error } = groupMessageSchema.validate(req.body)
 
   if (error) {
     return res.status(400).json({
