@@ -60,6 +60,9 @@ A production-ready, fast, and secure messaging API similar to WhatsApp with adva
 
 ## API Endpoints
 
+### API Health
+- `GET /api/health` - Get API health
+
 ### User Management
 - `POST /api/users/register` - Register a new user
 - `POST /api/users/block` - Block a user

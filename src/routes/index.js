@@ -23,5 +23,13 @@ router.use("/communities", communityRoutes)
 router.use("/channel-messages", channelMessageRoutes)
 router.use("/statuses", statusUpdateRoutes)
 
+// Router for API health check
+router.get("/health", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "API is healthy",
+  })
+})
+
 
 export default router
