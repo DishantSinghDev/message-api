@@ -66,3 +66,26 @@ export const validateGroupMessage = (req, res, next) => {
 
   next()
 }
+
+// Validation schema for channel messages
+const channelMessageSchema = Joi.object({
+  senderId: Joi.string().required(),
+  channelId: Joi.string().required(),
+  content: Joi.string().required(),
+  type: Joi.string().valid("text", "image", "video", "audio", "document", "link"),
+  mediaId: Joi.string().allow(null, ""),
+  replyToId: Joi.string().allow(null, ""),
+})
+// Middleware for validating channel messages
+export const validateChannelMessage = (req, res, next) => {
+  const { error } = channelMessageSchema.validate(req.body)
+
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.details[0].message,
+    })
+  }
+
+  next()
+}
