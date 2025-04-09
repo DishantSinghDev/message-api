@@ -35,6 +35,13 @@ const clamscan = new clamav({
 
 export const sanitizeFile = async (filePath) => {
   try {
+    // Ensure the file exists
+    if (!fs.existsSync(filePath)) {
+      return {
+        safe: false,
+        reason: "File not found",
+      };
+    }
     // Read file content
     const fileContent = await readFileAsync(filePath);
 
