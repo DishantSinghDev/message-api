@@ -58,10 +58,10 @@ export const sanitizeFile = async (filePath) => {
     const ClamScan = await initClamAV();
 
     // Scan file for viruses
-    const isInfected = await ClamScan.isInfected(filePath);
+    const response = await ClamScan.isInfected(filePath);
 
-    console.log(isInfected);
-    
+    const isInfected = response.isInfected;
+
     // Check if the file is infected
     if (isInfected) {
       return {
