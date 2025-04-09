@@ -4,7 +4,7 @@ import { promisify } from "util"
 import sharp from "sharp"
 import ffmpeg from "fluent-ffmpeg"
 import { v4 as uuidv4 } from "uuid"
-import fileType from "file-type";
+import { fileTypeFromFile } from "file-type"; // Use named import
 import clamav from "clamscan"; // Example virus scanning library
 
 const readFileAsync = promisify(fs.readFile)
@@ -47,7 +47,7 @@ export const sanitizeFile = async (filePath) => {
     }
 
     // Validate file type
-    const type = await fileType.fromFile(filePath);
+    const type = await fileTypeFromFile(filePath); // Updated function call
     const supportedMimeTypes = [
       "image/jpeg", "image/png", "image/gif", // Images
       "video/mp4", "video/3gpp", "video/mpeg", // Videos
