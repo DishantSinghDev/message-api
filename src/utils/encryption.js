@@ -1,5 +1,6 @@
 import crypto from "crypto"
 import { v4 as uuidv4 } from "uuid"
+import { User } from "../models/User"
 
 // Generate RSA key pair for E2EE
 export const generateKeyPair = async () => {
@@ -70,7 +71,13 @@ export const encryptGroupMessage = async (message, members) => {
   // Encrypt the symmetric key with each member's public key
   const encryptedKeys = {};
   for (const member of members) {
-    const { id, publicKey } = member;
+    const { userId } = member;
+
+    // Fetch the member's public key from your database or key store
+    const publicKey = await User.findById(userId).select("publicKey");
+    if (!publicKey) {
+      throw new Error(`Public key not found for user ID: ${userId}`);
+    }
 
     // Encrypt the symmetric key with the member's public key
     const encryptedKey = crypto.publicEncrypt(
@@ -82,7 +89,7 @@ export const encryptGroupMessage = async (message, members) => {
     );
 
     // Store the encrypted key for the member
-    encryptedKeys[id] = encryptedKey.toString("base64");
+    encryptedKeys[userId] = encryptedKey.toString("base64");
   }
 
   // Return the encrypted message, IV, and encrypted keys
