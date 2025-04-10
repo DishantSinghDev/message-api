@@ -14,6 +14,7 @@ const messageSchema = Joi.object({
   type: Joi.string().valid("text", "image", "video", "audio", "document", "link"),
   mediaId: Joi.string().allow(null, ""),
   replyToId: Joi.string().allow(null, ""),
+  scheduledFor: Joi.date().allow(null, ""),
 })
 
 // Middleware for validating registration
