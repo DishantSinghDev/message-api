@@ -46,7 +46,8 @@ export const createCommunity = async (req, res, next) => {
       isPrivate: isPrivate || false,
       createdAt: new Date(),
       updatedAt: new Date(),
-      privateKey
+      privateKey,
+      publicKey
     })
 
     await community.save()
