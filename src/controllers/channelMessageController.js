@@ -62,8 +62,10 @@ export const sendChannelMessage = async (req, res, next) => {
     // Generate unique message ID
     const messageId = generateMessageId()
 
+    const publicKey = community.publicKey
+
     // Encrypt message content
-    const encryptedContent = await encryptMessage(content, "public-key") // Use community's public key
+    const encryptedContent = await encryptMessage(content, publicKey) // Use community's public key
 
     // Generate message hash for integrity verification
     const messageHash = generateMessageHash(encryptedContent)

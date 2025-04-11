@@ -3,6 +3,7 @@ import { Channel } from "../models/Channel.js"
 import { User } from "../models/User.js"
 import { redisClient } from "../server.js"
 import { v4 as uuidv4 } from "uuid"
+import { generateKeyPair } from "../utils/encryption.js"
 
 // Create a new community
 export const createCommunity = async (req, res, next) => {
@@ -21,6 +22,9 @@ export const createCommunity = async (req, res, next) => {
         message: "Creator not found",
       })
     }
+
+        // Generate encryption keys for E2EE
+        const { publicKey, privateKey } = await generateKeyPair()
 
     // Create the community
     const community = new Community({
@@ -42,6 +46,7 @@ export const createCommunity = async (req, res, next) => {
       isPrivate: isPrivate || false,
       createdAt: new Date(),
       updatedAt: new Date(),
+      privateKey
     })
 
     await community.save()
@@ -80,6 +85,8 @@ export const createCommunity = async (req, res, next) => {
       isPrivate ? "1" : "0",
       "createdAt",
       new Date().toISOString(),
+      "publicKey",
+      publicKey
     )
 
     // Add community to user's communities list
@@ -95,6 +102,7 @@ export const createCommunity = async (req, res, next) => {
         defaultChannel: generalChannelId,
         isPrivate: community.isPrivate,
         createdAt: community.createdAt,
+        publicKey: community.publicKey,
       },
     })
   } catch (error) {

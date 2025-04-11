@@ -57,6 +57,14 @@ const communitySchema = new mongoose.Schema({
       ref: "Channel",
     },
   ],
+  publicKey: {
+    type: String,
+    required: true,
+  },
+  privateKey: {
+    type: String,
+    required: true,
+  },
   isPrivate: {
     type: Boolean,
     default: false,
