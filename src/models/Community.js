@@ -57,14 +57,16 @@ const communitySchema = new mongoose.Schema({
       ref: "Channel",
     },
   ],
-  publicKey: {
+  aesKey: {
     type: String,
-    required: true,
+    required: false,
   },
-  privateKey: {
+  e2eeMode: {
     type: String,
-    required: true,
+    enum: ["true", "trusted"],
+    default: "trusted",
   },
+  
   isPrivate: {
     type: Boolean,
     default: false,

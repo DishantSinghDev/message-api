@@ -141,3 +141,11 @@ export const generateMessageId = () => {
 export const generateFileId = () => {
   return `file_${uuidv4().replace(/-/g, "")}`
 }
+
+export const generateRandomAESKey = () => {
+  return crypto.randomBytes(32) // 256-bit AES key
+}
+
+export const encryptWithPublicKey = (publicKeyPem, buffer) => {
+  return crypto.publicEncrypt(publicKeyPem, buffer).toString("base64")
+}

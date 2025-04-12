@@ -3,30 +3,57 @@ import { Channel } from "../models/Channel.js"
 import { User } from "../models/User.js"
 import { redisClient } from "../server.js"
 import { v4 as uuidv4 } from "uuid"
-import { generateKeyPair } from "../utils/encryption.js"
+import { encryptWithPublicKey, generateKeyPair } from "../utils/encryption.js"
 
 // Create a new community
 export const createCommunity = async (req, res, next) => {
   try {
-    const { name, description, isPrivate, avatar, coverImage } = req.body
-    const createdBy = req.body.userId
+    const {
+      name,
+      description,
+      isPrivate,
+      avatar,
+      coverImage,
+      encryptedAESKey, // from client if true E2EE
+      plaintextAESKey, // from client if server-trusted E2EE
+    } = req.body;
 
-    // Generate unique community ID
-    const communityId = `comm_${uuidv4().replace(/-/g, "")}`
+    const createdBy = req.body.userId;
 
-    // Validate creator exists
-    const creator = await User.findById(createdBy)
+    const communityId = `comm_${uuidv4().replace(/-/g, "")}`;
+
+    const creator = await User.findById(createdBy).select("publicKey");
     if (!creator) {
       return res.status(404).json({
         success: false,
         message: "Creator not found",
-      })
+      });
     }
 
-        // Generate encryption keys for E2EE
-        const { publicKey, privateKey } = await generateKeyPair()
+    let e2eeMode = isPrivate ? "true" : "trusted";
+    let storedCommunityAESKey = null;
+    let encryptedAESKeyOnServer = null;
 
-    // Create the community
+    // Validation based on e2ee mode
+    if (e2eeMode === "true") {
+      if (!encryptedAESKey) {
+        return res.status(400).json({
+          success: false,
+          message: "Encrypted AES key is required for private communities (True E2EE)",
+        });
+      }
+    } else {
+      if (!plaintextAESKey) {
+        return res.status(400).json({
+          success: false,
+          message: "Plaintext AES key is required for public communities (Trusted E2EE)",
+        });
+      }
+      storedCommunityAESKey = plaintextAESKey; // you may want to encrypt this at rest
+      encryptedAESKeyOnServer = encryptWithPublicKey(creator.publicKey, plaintextAESKey);
+    }
+
+    // Create Community
     const community = new Community({
       communityId,
       name,
@@ -34,6 +61,8 @@ export const createCommunity = async (req, res, next) => {
       avatar: avatar || null,
       coverImage: coverImage || null,
       createdBy,
+      e2eeMode, // "trusted" or "true"
+      aesKey: storedCommunityAESKey || null,
       admins: [createdBy],
       members: [
         {
@@ -46,14 +75,13 @@ export const createCommunity = async (req, res, next) => {
       isPrivate: isPrivate || false,
       createdAt: new Date(),
       updatedAt: new Date(),
-      privateKey,
-      publicKey
-    })
+    });
 
-    await community.save()
+    await community.save();
 
-    // Create default general channel
-    const generalChannelId = `chan_${uuidv4().replace(/-/g, "")}`
+    // Create Default General Channel
+    const generalChannelId = `chan_${uuidv4().replace(/-/g, "")}`;
+
     const generalChannel = new Channel({
       channelId: generalChannelId,
       communityId,
@@ -63,35 +91,32 @@ export const createCommunity = async (req, res, next) => {
       createdBy,
       moderators: [createdBy],
       isPrivate: false,
+      encryptedKeys: e2eeMode === "true" ? {
+        [createdBy]: encryptedAESKey,
+      } : {
+        [createdBy]: encryptedAESKeyOnServer,
+      },
       createdAt: new Date(),
       updatedAt: new Date(),
-    })
+    });
 
-    await generalChannel.save()
+    await generalChannel.save();
 
-    // Add channel to community
-    community.channels.push(generalChannelId)
-    await community.save()
+    community.channels.push(generalChannelId);
+    await community.save();
 
-    // Cache community data in Redis
+    // Cache metadata
     await redisClient.hset(
       `community:${communityId}`,
-      "name",
-      name,
-      "description",
-      description || "",
-      "createdBy",
-      createdBy.toString(),
-      "isPrivate",
-      isPrivate ? "1" : "0",
-      "createdAt",
-      new Date().toISOString(),
-      "publicKey",
-      publicKey
-    )
+      "name", name,
+      "description", description || "",
+      "createdBy", createdBy.toString(),
+      "isPrivate", isPrivate ? "1" : "0",
+      "e2eeMode", e2eeMode,
+      "createdAt", new Date().toISOString()
+    );
 
-    // Add community to user's communities list
-    await redisClient.sadd(`user:${createdBy}:communities`, communityId)
+    await redisClient.sadd(`user:${createdBy}:communities`, communityId);
 
     return res.status(201).json({
       success: true,
@@ -102,14 +127,15 @@ export const createCommunity = async (req, res, next) => {
         createdBy: community.createdBy,
         defaultChannel: generalChannelId,
         isPrivate: community.isPrivate,
+        e2eeMode,
         createdAt: community.createdAt,
-        publicKey: community.publicKey,
       },
-    })
+    });
   } catch (error) {
-    next(error)
+    next(error);
   }
-}
+};
+
 
 // Get community details
 export const getCommunityDetails = async (req, res, next) => {
@@ -145,6 +171,7 @@ export const getCommunityDetails = async (req, res, next) => {
           isPrivate: cachedCommunity.isPrivate === "1",
           channelIds,
           createdAt: cachedCommunity.createdAt,
+          e2eeMode: cachedCommunity.e2eeMode,
         },
       })
     }
@@ -222,6 +249,7 @@ export const getCommunityDetails = async (req, res, next) => {
         isPrivate: community.isPrivate,
         createdAt: community.createdAt,
         updatedAt: community.updatedAt,
+        e2eeMode: community.e2eeMode,
       },
     })
   } catch (error) {
@@ -232,48 +260,107 @@ export const getCommunityDetails = async (req, res, next) => {
 // Join a community
 export const joinCommunity = async (req, res, next) => {
   try {
-    const { communityId } = req.body
-    const userId = req.body.userId
+    const { communityId, userId } = req.body;
 
-    // Validate community exists
-    const community = await Community.findOne({ communityId })
+    const community = await Community.findOne({ communityId });
     if (!community) {
       return res.status(404).json({
         success: false,
         message: "Community not found",
-      })
+      });
     }
 
-    // Check if already a member
-    const isMember = community.members.some((m) => m.userId.toString() === userId)
+    const isMember = community.members.some((m) => m.userId.toString() === userId);
     if (isMember) {
       return res.status(400).json({
         success: false,
         message: "Already a member of this community",
-      })
+      });
     }
 
-    // Check if private
-    if (community.isPrivate) {
-      return res.status(403).json({
-        success: false,
-        message: "This community is private. You need an invitation to join.",
-      })
+    const e2eeMode = community.e2eeMode || "trusted"; // fallback
+
+    if (community.isPrivate && e2eeMode === "true") {
+      // 🔐 True E2EE private community - needs approval
+      // Optional: Check if request already exists
+      await redisClient.sadd(`community:${communityId}:pendingJoinRequests`, userId);
+
+      // Create a join request
+      const joinRequest = new CommunityApproval({
+        communityId,
+        userId,
+        status: "pending",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      await joinRequest.save();
+
+      // Cache in Redis
+      await redisClient.hset(
+        `community:${communityId}:joinRequest:${userId}`,
+        "status",
+        "pending",
+        "createdAt",
+        new Date().toISOString(),
+      );
+      await redisClient.sadd(`user:${userId}:pendingJoinRequests`, communityId);
+
+      return res.status(202).json({
+        success: true,
+        message: "Join request submitted. Awaiting admin approval.",
+        data: {
+          communityId,
+          userId,
+          status: "pending",
+        },
+      });
     }
 
-    // Add user to community
-    community.members.push({
-      userId,
-      role: "member",
-      joinedAt: new Date(),
-    })
+    // For public OR server-trusted private community (where server has AES)
+    const role = "member";
+    const joinedAt = new Date();
 
-    community.updatedAt = new Date()
-    await community.save()
+    // Add to community members
+    community.members.push({ userId, role, joinedAt });
+    community.updatedAt = new Date();
+    await community.save();
 
-    // Update Redis
-    await redisClient.sadd(`community:${communityId}:members`, userId)
-    await redisClient.sadd(`user:${userId}:communities`, communityId)
+    // Add to Redis
+    await redisClient.sadd(`community:${communityId}:members`, userId);
+    await redisClient.sadd(`user:${userId}:communities`, communityId);
+
+    // ⛓️ For trusted E2EE: optionally re-encrypt AES key with user's public key & store in DB
+    if (e2eeMode === "trusted") {
+      const channels = await Channel.find({ communityId });
+
+      await Promise.all(channels.map(async (channel) => {
+        if (!channel.encryptedKeys) channel.encryptedKeys = {};
+
+        const user = await User.findById(userId).select("publicKey");
+        if (!user) {
+          return res.status(404).json({
+            success: false,
+            message: "User not found",
+          });
+        }
+
+        if (!community.aesKey) {
+          return res.status(500).json({
+            success: false,
+            message: "Community AES key not found on server for trusted E2EE.",
+          });
+        }
+
+        // Check if the user is allowed in the channel
+        if (!channel.isPrivate || channel.allowedMembers.includes(userId)) {
+          const encryptedAESKey = encryptWithPublicKey(user.publicKey, community.aesKey);
+          if (encryptedAESKey) {
+            channel.encryptedKeys[userId] = encryptedAESKey;
+            await channel.save();
+          }
+        }
+      }));
+    }
 
     return res.status(200).json({
       success: true,
@@ -281,63 +368,172 @@ export const joinCommunity = async (req, res, next) => {
       data: {
         communityId,
         userId,
-        role: "member",
-        joinedAt: new Date(),
+        role,
+        joinedAt,
       },
-    })
+    });
   } catch (error) {
-    next(error)
+    next(error);
   }
-}
+};
 
-// Leave a community
-export const leaveCommunity = async (req, res, next) => {
+// Approve a join request
+export const approveJoinRequest = async (req, res, next) => {
   try {
-    const { communityId } = req.body
-    const userId = req.body.userId
+    const { communityId, userId, encryptedKey } = req.body;
+    const adminId = req.body.adminId;
 
-    // Validate community exists
-    const community = await Community.findOne({ communityId })
+    if (!encryptedKey) {
+      return res.status(400).json({
+        success: false,
+        message: "Encrypted key is required from client.",
+      });
+    }
+
+    // Fetch community
+    const community = await Community.findOne({ communityId });
     if (!community) {
       return res.status(404).json({
         success: false,
         message: "Community not found",
-      })
+      });
+    }
+
+    const e2eeMode = community.e2eeMode || "trusted";
+    if (e2eeMode !== "true" || !community.isPrivate) {
+      return res.status(400).json({
+        success: false,
+        message: "This endpoint is only for true E2EE private communities",
+      });
+    }
+
+    // Check if admin is authorized
+    const isAdmin = community.admins.includes(adminId);
+    if (!isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to approve requests in this community",
+      });
+    }
+
+    // Check pending request
+    const joinRequest = await CommunityApproval.findOne({ communityId, userId, status: "pending" });
+    if (!joinRequest) {
+      return res.status(404).json({
+        success: false,
+        message: "Join request not found or already handled",
+      });
+    }
+
+    // Mark request as approved
+    joinRequest.status = "approved";
+    joinRequest.updatedAt = new Date();
+    await joinRequest.save();
+
+    // Add user to community
+    const joinedAt = new Date();
+    community.members.push({ userId, role: "member", joinedAt });
+    community.updatedAt = new Date();
+    await community.save();
+
+    // Store encrypted key for each channel
+    const channels = await Channel.find({ communityId });
+    for (const channel of channels) {
+      if (!channel.encryptedKeys) {
+        channel.encryptedKeys = {};
+      }
+
+      // Check if the user is allowed in the channel
+      if (!channel.isPrivate || channel.allowedMembers.includes(userId)) {
+        // Store the encrypted AES key for this user (encrypted client-side)
+        channel.encryptedKeys[userId] = encryptedKey;
+        await channel.save();
+      }
+    }
+
+    // Remove pending join request from Redis
+    await redisClient.srem(`community:${communityId}:pendingJoinRequests`, userId);
+    await redisClient.del(`community:${communityId}:joinRequest:${userId}`);
+    await redisClient.srem(`user:${userId}:pendingJoinRequests`, communityId);
+
+    // Add to user and community member sets in Redis
+    await redisClient.sadd(`community:${communityId}:members`, userId);
+    await redisClient.sadd(`user:${userId}:communities`, communityId);
+
+    return res.status(200).json({
+      success: true,
+      message: "User approved and added to the community",
+      data: {
+        communityId,
+        userId,
+        role: "member",
+        joinedAt,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+
+// Leave a community
+export const leaveCommunity = async (req, res, next) => {
+  try {
+    const { communityId } = req.body;
+    const userId = req.body.userId;
+
+    // Validate community exists
+    const community = await Community.findOne({ communityId });
+    if (!community) {
+      return res.status(404).json({
+        success: false,
+        message: "Community not found",
+      });
     }
 
     // Check if a member
-    const memberIndex = community.members.findIndex((m) => m.userId.toString() === userId)
+    const memberIndex = community.members.findIndex((m) => m.userId.toString() === userId);
     if (memberIndex === -1) {
       return res.status(400).json({
         success: false,
         message: "Not a member of this community",
-      })
+      });
     }
 
     // Check if the last admin
-    const isAdmin = community.members[memberIndex].role === "admin"
-    const adminCount = community.members.filter((m) => m.role === "admin").length
+    const isAdmin = community.members[memberIndex].role === "admin";
+    const adminCount = community.members.filter((m) => m.role === "admin").length;
 
     if (isAdmin && adminCount === 1) {
       return res.status(400).json({
         success: false,
         message: "Cannot leave community as the last admin. Transfer ownership first.",
-      })
+      });
     }
 
     // Remove from admins if admin
     if (isAdmin) {
-      community.admins = community.admins.filter((a) => a.toString() !== userId)
+      community.admins = community.admins.filter((a) => a.toString() !== userId);
     }
 
     // Remove from members
-    community.members.splice(memberIndex, 1)
-    community.updatedAt = new Date()
-    await community.save()
+    community.members.splice(memberIndex, 1);
+    community.updatedAt = new Date();
+    await community.save();
+
+    // Remove user's encryptedKeys from all allowed channels in the community
+    const channels = await Channel.find({ communityId });
+    for (const channel of channels) {
+      if (channel.encryptedKeys && channel.encryptedKeys[userId]) {
+        delete channel.encryptedKeys[userId];
+        await channel.save();
+      }
+    }
 
     // Update Redis
-    await redisClient.srem(`community:${communityId}:members`, userId)
-    await redisClient.srem(`user:${userId}:communities`, communityId)
+    await redisClient.srem(`community:${communityId}:members`, userId);
+    await redisClient.srem(`user:${userId}:communities`, communityId);
 
     return res.status(200).json({
       success: true,
@@ -346,40 +542,78 @@ export const leaveCommunity = async (req, res, next) => {
         communityId,
         userId,
       },
-    })
+    });
   } catch (error) {
-    next(error)
+    next(error);
   }
-}
+};
 
 // Create a channel in a community
 export const createChannel = async (req, res, next) => {
   try {
-    const { communityId, name, description, type, isPrivate, allowedMembers } = req.body
-    const userId = req.body.userId
+    const {
+      communityId,
+      name,
+      description,
+      type,
+      isPrivate,
+      allowedMembers,
+      encryptedKeysFromClient, // 🔐 { userId: encryptedAESKeyWithUserPubKey } - for true E2EE
+    } = req.body;
 
-    // Validate community exists
-    const community = await Community.findOne({ communityId })
+    const userId = req.body.userId;
+
+    // Validate community
+    const community = await Community.findOne({ communityId });
     if (!community) {
       return res.status(404).json({
         success: false,
         message: "Community not found",
-      })
+      });
     }
 
-    // Check if user is an admin
-    const isAdmin = community.admins.some((a) => a.toString() === userId)
+    // Check admin
+    const isAdmin = community.admins.includes(userId);
     if (!isAdmin) {
       return res.status(403).json({
         success: false,
         message: "Only admins can create channels",
-      })
+      });
     }
 
-    // Generate unique channel ID
-    const channelId = `chan_${uuidv4().replace(/-/g, "")}`
+    // Channel ID
+    const channelId = `chan_${uuidv4().replace(/-/g, "")}`;
+    const e2eeMode = community.e2eeMode || "trusted";
 
-    // Create the channel
+    // Prepare encryptedKeys
+    let encryptedKeys = {};
+
+    if (e2eeMode === "true" && community.isPrivate) {
+      // 🔐 True E2EE: we need encrypted AES key for each member from client
+      if (!encryptedKeysFromClient || typeof encryptedKeysFromClient !== "object") {
+        return res.status(400).json({
+          success: false,
+          message: "Encrypted keys for members must be provided for true E2EE communities",
+        });
+      }
+
+      encryptedKeys = encryptedKeysFromClient; // already encrypted on client
+    } else {
+      // 🔐 Server-trusted E2EE: Encrypt community AES key using each user's public key
+      const aesKey = community.aesKey;
+      const members = community.members || [];
+
+      for (const member of members) {
+        const uid = member.userId.toString();
+        const user = await User.findById(uid).select("publicKey");
+        if (!user || !user.publicKey) continue;
+
+        const encKey = encryptWithPublicKey(user.publicKey, aesKey);
+        encryptedKeys[uid] = encKey;
+      }
+    }
+
+    // Create channel
     const channel = new Channel({
       channelId,
       communityId,
@@ -390,19 +624,20 @@ export const createChannel = async (req, res, next) => {
       moderators: [userId],
       isPrivate: isPrivate || false,
       allowedMembers: isPrivate ? allowedMembers || [] : [],
+      encryptedKeys,
       createdAt: new Date(),
       updatedAt: new Date(),
-    })
+    });
 
-    await channel.save()
+    await channel.save();
 
-    // Add channel to community
-    community.channels.push(channelId)
-    community.updatedAt = new Date()
-    await community.save()
+    // Update community
+    community.channels.push(channelId);
+    community.updatedAt = new Date();
+    await community.save();
 
-    // Update Redis
-    await redisClient.sadd(`community:${communityId}:channels`, channelId)
+    // Cache to Redis
+    await redisClient.sadd(`community:${communityId}:channels`, channelId);
     await redisClient.hset(
       `channel:${channelId}`,
       "name",
@@ -417,7 +652,7 @@ export const createChannel = async (req, res, next) => {
       isPrivate ? "1" : "0",
       "createdAt",
       new Date().toISOString(),
-    )
+    );
 
     return res.status(201).json({
       success: true,
@@ -430,11 +665,12 @@ export const createChannel = async (req, res, next) => {
         isPrivate: channel.isPrivate,
         createdAt: channel.createdAt,
       },
-    })
+    });
   } catch (error) {
-    next(error)
+    next(error);
   }
-}
+};
+
 
 // Get channels in a community
 export const getCommunityChannels = async (req, res, next) => {

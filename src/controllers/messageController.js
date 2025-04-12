@@ -6,36 +6,45 @@ import { io } from "../server.js"
 
 export const sendMessage = async (req, res, next) => {
   try {
-    const { senderId, recipientId, content, type = "text", mediaId = null, replyToId = null } = req.body
+    const {
+      senderId,
+      recipientId,
+      encryptedContent, // Must come pre-encrypted from client
+      type = "text",
+      mediaId = null,
+      replyToId = null,
+    } = req.body;
 
-    // Check if recipient has blocked sender
-    const isBlocked = await redisClient.sismember(`user:${recipientId}:blocked`, senderId)
+    // Check if recipient has blocked the sender
+    const isBlocked = await redisClient.sismember(`user:${recipientId}:blocked`, senderId);
     if (isBlocked) {
       return res.status(403).json({
         success: false,
         message: "Cannot send message to this user",
-      })
+      });
     }
 
-    // Get recipient's public key for encryption
-    const recipient = await User.findById(recipientId).select("publicKey")
-    if (!recipient) {
-      return res.status(404).json({
+    // Validate structure of the encrypted message (optional but safe)
+    let parsedEncrypted;
+    try {
+      parsedEncrypted = JSON.parse(encryptedContent);
+      if (!parsedEncrypted.message || !parsedEncrypted.key || !parsedEncrypted.iv) {
+        throw new Error("Invalid encrypted structure");
+      }
+    } catch (err) {
+      return res.status(400).json({
         success: false,
-        message: "Recipient not found",
-      })
+        message: "Encrypted message structure is invalid",
+      });
     }
 
     // Generate unique message ID
-    const messageId = generateMessageId()
+    const messageId = generateMessageId();
 
-    // Encrypt message content with recipient's public key
-    const encryptedContent = await encryptMessage(content, recipient.publicKey)
+    // Generate hash for integrity check
+    const messageHash = generateMessageHash(encryptedContent);
 
-    // Generate message hash for integrity verification
-    const messageHash = generateMessageHash(encryptedContent)
-
-    // Create message object
+    // Store message
     const message = new Message({
       messageId,
       senderId,
@@ -49,13 +58,13 @@ export const sendMessage = async (req, res, next) => {
       sentAt: new Date(),
       deliveredAt: null,
       seenAt: null,
-    })
+    });
 
-    await message.save()
+    await message.save();
 
-    // Store in Redis for faster retrieval
+    // Store in Redis for fast access
     const messageData = {
-      messageId: message.messageId,
+      messageId,
       senderId: message.senderId.toString(),
       recipientId: message.recipientId.toString(),
       content: message.content,
@@ -67,20 +76,19 @@ export const sendMessage = async (req, res, next) => {
       sentAt: message.sentAt.toISOString(),
       deliveredAt: null,
       seenAt: null,
-    }
+    };
 
-    // Store in Redis with TTL (30 days)
     await redisClient.setex(
       `message:${messageId}`,
-      2592000, // 30 days in seconds
-      JSON.stringify(messageData),
-    )
+      2592000, // 30 days
+      JSON.stringify(messageData)
+    );
 
-    // Add to chat history lists
-    await redisClient.zadd(`chat:${senderId}:${recipientId}`, Date.now(), messageId)
-    await redisClient.zadd(`chat:${recipientId}:${senderId}`, Date.now(), messageId)
+    // Add to chat lists
+    await redisClient.zadd(`chat:${senderId}:${recipientId}`, Date.now(), messageId);
+    await redisClient.zadd(`chat:${recipientId}:${senderId}`, Date.now(), messageId);
 
-    // Emit real-time event via Socket.io
+    // Emit via socket (only metadata — NOT encrypted content)
     io.to(recipientId).emit("new_message", {
       messageId,
       senderId,
@@ -88,7 +96,7 @@ export const sendMessage = async (req, res, next) => {
       mediaId,
       replyToId,
       sentAt: message.sentAt,
-    })
+    });
 
     return res.status(201).json({
       success: true,
@@ -97,11 +105,12 @@ export const sendMessage = async (req, res, next) => {
         status: message.status,
         sentAt: message.sentAt,
       },
-    })
+    });
   } catch (error) {
-    next(error)
+    next(error);
   }
-}
+};
+
 
 export const getMessages = async (req, res, next) => {
   try {
@@ -404,5 +413,30 @@ export const scheduleMessage = async (req, res, next) => {
     })
   } catch (error) {
     next(error)
+  }
+}
+
+
+export const getUserPublicKey = async (req, res, next) => {
+  try {
+    const { username } = req.params
+
+    const user = await User.findOne({ username }).select("publicKey")
+    if (!user || !user.publicKey) {
+      return res.status(404).json({
+        success: false,
+        message: "User or public key not found",
+      })
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        username,
+        publicKey: user.publicKey,
+      },
+    })
+  } catch (err) {
+    next(err)
   }
 }

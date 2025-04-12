@@ -2,9 +2,33 @@ import { User } from "../models/User.js"
 import { generateKeyPair } from "../utils/encryption.js"
 import { redisClient } from "../server.js"
 
+import crypto from "crypto"
+
 export const registerUser = async (req, res, next) => {
   try {
-    const { username, deviceId } = req.body
+    const { username, deviceId, publicKey } = req.body
+
+    // Basic check: Ensure publicKey is present
+    if (!publicKey || typeof publicKey !== "string") {
+      return res.status(400).json({
+        success: false,
+        message: "Public key is required and must be a string",
+      })
+    }
+
+    // Validate the RSA public key
+    try {
+      crypto.createPublicKey({
+        key: publicKey,
+        format: "pem",
+        type: "spki", // expected for public key
+      })
+    } catch (err) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid RSA public key format",
+      })
+    }
 
     // Check if user already exists
     const existingUser = await User.findOne({ username })
@@ -15,22 +39,23 @@ export const registerUser = async (req, res, next) => {
       })
     }
 
-    // Generate encryption keys for E2EE
-    const { publicKey, privateKey } = await generateKeyPair()
-
-    // Create new user
+    // Save new user
     const user = new User({
       username,
       deviceId,
       publicKey,
-      privateKey: privateKey, // In a real app, this would be stored client-side only
       createdAt: new Date(),
     })
 
     await user.save()
 
-    // Cache user data in Redis for faster access
-    await redisClient.hset(`user:${user._id}`, "username", username, "publicKey", publicKey, "status", "online")
+    // Cache user data in Redis
+    await redisClient.hset(
+      `user:${user._id}`,
+      "username", username,
+      "publicKey", publicKey,
+      "status", "online"
+    )
 
     return res.status(201).json({
       success: true,

@@ -10,7 +10,7 @@ const registrationSchema = Joi.object({
 const messageSchema = Joi.object({
   senderId: Joi.string().required(),
   recipientId: Joi.string().required(),
-  content: Joi.string().required(),
+  encryptedContent: Joi.string().required(),
   type: Joi.string().valid("text", "image", "video", "audio", "document", "link"),
   mediaId: Joi.string().allow(null, ""),
   replyToId: Joi.string().allow(null, ""),
@@ -48,7 +48,7 @@ export const validateMessage = (req, res, next) => {
 const groupMessageSchema = Joi.object({
   senderId: Joi.string().required(),
   groupId: Joi.string().required(),
-  content: Joi.string().required(),
+  encryptedContent: Joi.string().required(),
   type: Joi.string().valid("text", "image", "video", "audio", "document", "link"),
   mediaId: Joi.string().allow(null, ""),
   replyToId: Joi.string().allow(null, ""),

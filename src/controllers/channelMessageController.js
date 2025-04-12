@@ -8,117 +8,137 @@ import { encryptMessage, generateMessageHash, generateMessageId } from "../utils
 // Send message to a channel
 export const sendChannelMessage = async (req, res, next) => {
   try {
-    const { senderId, channelId, content, type = "text", mediaId = null, replyToId = null } = req.body
+    const {
+      senderId,
+      channelId,
+      content, // Should be an encrypted object: { ciphertext, iv, tag?, etc. }
+      type = "text",
+      mediaId = null,
+      replyToId = null,
+    } = req.body;
+
+    // Validate encrypted content
+    if (
+      !content ||
+      typeof content !== "object" ||
+      !content.ciphertext ||
+      !content.iv
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Encrypted content must include at least ciphertext and iv",
+      });
+    }
 
     // Check if channel exists
-    const channel = await Channel.findOne({ channelId })
+    const channel = await Channel.findOne({ channelId });
     if (!channel) {
       return res.status(404).json({
         success: false,
         message: "Channel not found",
-      })
+      });
     }
 
     // Check if community exists
-    const community = await Community.findOne({ communityId: channel.communityId })
+    const community = await Community.findOne({ communityId: channel.communityId });
     if (!community) {
       return res.status(404).json({
         success: false,
         message: "Community not found",
-      })
+      });
     }
 
-    // Check if sender is a member of the community
-    const isMember = community.members.some((m) => m.userId.toString() === senderId)
+    // Check if sender is a community member
+    const isMember = community.members.some((m) => m.userId.toString() === senderId);
     if (!isMember) {
       return res.status(403).json({
         success: false,
         message: "You are not a member of this community",
-      })
+      });
     }
 
-    // Check if channel is private and user has access
+    // Check private channel access
     if (channel.isPrivate) {
-      const hasAccess = channel.allowedMembers.includes(senderId) || channel.moderators.includes(senderId)
+      const hasAccess =
+        channel.allowedMembers.includes(senderId) || channel.moderators.includes(senderId);
       if (!hasAccess) {
         return res.status(403).json({
           success: false,
-          message: "You do not have access to this channel",
-        })
+          message: "You do not have access to this private channel",
+        });
       }
     }
 
-    // Check if replying to a valid message
+    // Validate reply message exists if replying
     if (replyToId) {
-      const originalMessage = await ChannelMessage.findOne({ messageId: replyToId })
+      const originalMessage = await ChannelMessage.findOne({ messageId: replyToId });
       if (!originalMessage) {
         return res.status(404).json({
           success: false,
-          message: "Original message not found",
-        })
+          message: "Original message not found for reply",
+        });
       }
     }
 
-    // Generate unique message ID
-    const messageId = generateMessageId()
+    // Generate message ID
+    const messageId = generateMessageId();
 
-    const publicKey = community.publicKey
+    // Hash encrypted content for integrity
+    const messageHash = generateMessageHash(JSON.stringify(content));
 
-    // Encrypt message content
-    const encryptedContent = await encryptMessage(content, publicKey) // Use community's public key
-
-    // Generate message hash for integrity verification
-    const messageHash = generateMessageHash(encryptedContent)
-
-    // Create message object
+    // Create and save message
     const message = new ChannelMessage({
       messageId,
       channelId,
       senderId,
-      content: encryptedContent,
+      content,
       contentHash: messageHash,
       type,
       mediaId,
       replyToId,
       sentAt: new Date(),
-    })
+    });
 
-    await message.save()
+    await message.save();
 
-    // Store in Redis for faster retrieval
+    // Cache in Redis
     const messageData = {
-      messageId: message.messageId,
-      channelId: message.channelId,
-      senderId: message.senderId.toString(),
-      content: message.content,
-      contentHash: message.contentHash,
-      type: message.type,
-      mediaId: message.mediaId,
-      replyToId: message.replyToId,
+      messageId,
+      channelId,
+      senderId: senderId.toString(),
+      content,
+      contentHash: messageHash,
+      type,
+      mediaId,
+      replyToId,
       sentAt: message.sentAt.toISOString(),
-    }
+    };
 
-    // Store in Redis with TTL (30 days)
     await redisClient.setex(
       `channelmessage:${messageId}`,
-      2592000, // 30 days in seconds
-      JSON.stringify(messageData),
-    )
+      60 * 60 * 24 * 30, // 30 days TTL
+      JSON.stringify(messageData)
+    );
 
-    // Add to channel chat history
-    await redisClient.zadd(`channelchat:${channelId}`, Date.now(), messageId)
+    await redisClient.zadd(`channelchat:${channelId}`, Date.now(), messageId);
 
-    // Get community members for notifications
-    let memberIds = []
+    // Notify community members via Socket.io
+    let memberIds = [];
+
     if (channel.isPrivate) {
-      // Only notify allowed members and moderators
-      memberIds = [...channel.allowedMembers, ...channel.moderators].filter((id) => id.toString() !== senderId)
+      memberIds = [
+        ...new Set(
+          [...channel.allowedMembers, ...channel.moderators].filter(
+            (id) => id.toString() !== senderId
+          )
+        ),
+      ];
     } else {
-      // Notify all community members
-      memberIds = community.members.filter((m) => m.userId.toString() !== senderId).map((m) => m.userId.toString())
+      memberIds = community.members
+        .map((m) => m.userId.toString())
+        .filter((id) => id !== senderId);
     }
 
-    // Emit real-time event via Socket.io to all relevant members
     for (const memberId of memberIds) {
       io.to(memberId).emit("new_channel_message", {
         messageId,
@@ -129,7 +149,7 @@ export const sendChannelMessage = async (req, res, next) => {
         mediaId,
         replyToId,
         sentAt: message.sentAt,
-      })
+      });
     }
 
     return res.status(201).json({
@@ -139,11 +159,12 @@ export const sendChannelMessage = async (req, res, next) => {
         channelId: message.channelId,
         sentAt: message.sentAt,
       },
-    })
+    });
   } catch (error) {
-    next(error)
+    next(error);
   }
-}
+};
+
 
 // Get channel messages
 export const getChannelMessages = async (req, res, next) => {

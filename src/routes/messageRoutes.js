@@ -7,6 +7,7 @@ import {
   addReaction,
   deleteMessage,
   scheduleMessage,
+  getUserPublicKey,
 } from "../controllers/messageController.js"
 import { validateMessage } from "../middleware/validation.js"
 import { rateLimiter } from "../middleware/rateLimiter.js"
@@ -14,6 +15,7 @@ import { rateLimiter } from "../middleware/rateLimiter.js"
 const router = express.Router()
 
 router.post("/send", validateMessage, rateLimiter("sendMessage", 20, 60), sendMessage)
+router.get("/public-key/:userId", rateLimiter("getPublicKey", 30, 60), getUserPublicKey)
 router.get("/:userId/:recipientId", rateLimiter("getMessages", 30, 60), getMessages)
 router.post("/typing", rateLimiter("typing", 30, 10), sendTypingIndicator)
 router.post("/reply", validateMessage, rateLimiter("messageAction", 20, 60), replyToMessage)

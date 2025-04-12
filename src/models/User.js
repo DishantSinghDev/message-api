@@ -15,10 +15,6 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  privateKey: {
-    type: String,
-    required: true,
-  },
   blockedUsers: [
     {
       type: mongoose.Schema.Types.ObjectId,

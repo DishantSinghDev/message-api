@@ -45,6 +45,18 @@ const channelSchema = new mongoose.Schema({
       ref: "User",
     },
   ],
+  encryptedKeys: [
+    {
+      userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+      key: {
+        type: String,
+        required: true,
+      },
+    },
+  ],
   createdAt: {
     type: Date,
     default: Date.now,

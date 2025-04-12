@@ -1,62 +1,78 @@
 import { GroupMessage } from "../models/GroupMessage.js"
 import { Group } from "../models/Group.js"
+import { User } from "../models/User.js"
 import { redisClient } from "../server.js"
 import { io } from "../server.js"
-import { encryptGroupMessage, generateMessageHash, generateMessageId } from "../utils/encryption.js"
+import { generateMessageHash, generateMessageId } from "../utils/encryption.js"
 
 // Send message to a group
 export const sendGroupMessage = async (req, res, next) => {
   try {
-    const { senderId, groupId, content, type = "text", mediaId = null, replyToId = null } = req.body
+    const {
+      senderId,
+      groupId,
+      encryptedContent, // Comes pre-encrypted from client
+      type = "text",
+      mediaId = null,
+      replyToId = null,
+    } = req.body;
 
-    // Check if group exists
-    const group = await Group.findOne({ groupId })
+    // Validate group
+    const group = await Group.findOne({ groupId });
     if (!group) {
       return res.status(404).json({
         success: false,
         message: "Group not found",
-      })
+      });
     }
 
-    // Check if sender is a member of the group
-    const isMember = group.members.some((m) => m.userId.toString() === senderId)
+    // Ensure sender is in group
+    const isMember = group.members.some((m) => m.userId.toString() === senderId);
     if (!isMember) {
       return res.status(403).json({
         success: false,
         message: "You are not a member of this group",
-      })
+      });
     }
 
-    // Check if only admins can send messages
-    const isAdmin = group.members.some((m) => m.userId.toString() === senderId && m.role === "admin")
-    if (group.settings.onlyAdminsCanSend && !isAdmin) {
+    // Check for admin-only settings
+    const isAdmin = group.members.some((m) => m.userId.toString() === senderId && m.role === "admin");
+    if (group.settings?.onlyAdminsCanSend && !isAdmin) {
       return res.status(403).json({
         success: false,
         message: "Only admins can send messages in this group",
-      })
+      });
     }
 
-    // Check if replying to a valid message
+    // Check if reply target exists
     if (replyToId) {
-      const originalMessage = await GroupMessage.findOne({ messageId: replyToId })
+      const originalMessage = await GroupMessage.findOne({ messageId: replyToId });
       if (!originalMessage) {
         return res.status(404).json({
           success: false,
           message: "Original message not found",
-        })
+        });
       }
     }
 
-    // Generate unique message ID
-    const messageId = generateMessageId()
+    // Validate encryptedContent format
+    try {
+      const parsed = JSON.parse(encryptedContent);
+      if (!parsed.message || !parsed.keys || typeof parsed.keys !== "object") {
+        throw new Error("Invalid group encrypted structure");
+      }
+    } catch {
+      return res.status(400).json({
+        success: false,
+        message: "Encrypted message structure is invalid",
+      });
+    }
 
-    // Encrypt message content for group
-    const encryptedContent = await encryptGroupMessage(content, group.members)
+    // Generate messageId and hash
+    const messageId = generateMessageId();
+    const messageHash = generateMessageHash(encryptedContent);
 
-    // Generate message hash for integrity verification
-    const messageHash = generateMessageHash(encryptedContent)
-
-    // Create message object
+    // Save message
     const message = new GroupMessage({
       messageId,
       groupId,
@@ -67,14 +83,14 @@ export const sendGroupMessage = async (req, res, next) => {
       mediaId,
       replyToId,
       sentAt: new Date(),
-    })
+    });
 
-    await message.save()
+    await message.save();
 
-    // Store in Redis for faster retrieval
+    // Cache in Redis
     const messageData = {
-      messageId: message.messageId,
-      groupId: message.groupId,
+      messageId,
+      groupId,
       senderId: message.senderId.toString(),
       content: message.content,
       contentHash: message.contentHash,
@@ -82,22 +98,16 @@ export const sendGroupMessage = async (req, res, next) => {
       mediaId: message.mediaId,
       replyToId: message.replyToId,
       sentAt: message.sentAt.toISOString(),
-    }
+    };
 
-    // Store in Redis with TTL (30 days)
-    await redisClient.setex(
-      `groupmessage:${messageId}`,
-      2592000, // 30 days in seconds
-      JSON.stringify(messageData),
-    )
+    await redisClient.setex(`groupmessage:${messageId}`, 2592000, JSON.stringify(messageData));
+    await redisClient.zadd(`groupchat:${groupId}`, Date.now(), messageId);
 
-    // Add to group chat history
-    await redisClient.zadd(`groupchat:${groupId}`, Date.now(), messageId)
+    // Notify other members
+    const memberIds = group.members
+      .filter((m) => m.userId.toString() !== senderId)
+      .map((m) => m.userId.toString());
 
-    // Get member IDs for notifications
-    const memberIds = group.members.filter((m) => m.userId.toString() !== senderId).map((m) => m.userId.toString())
-
-    // Emit real-time event via Socket.io to all group members
     for (const memberId of memberIds) {
       io.to(memberId).emit("new_group_message", {
         messageId,
@@ -107,21 +117,22 @@ export const sendGroupMessage = async (req, res, next) => {
         mediaId,
         replyToId,
         sentAt: message.sentAt,
-      })
+      });
     }
 
     return res.status(201).json({
       success: true,
       data: {
-        messageId: message.messageId,
-        groupId: message.groupId,
+        messageId,
+        groupId,
         sentAt: message.sentAt,
       },
-    })
+    });
   } catch (error) {
-    next(error)
+    next(error);
   }
-}
+};
+
 
 // Get group messages
 export const getGroupMessages = async (req, res, next) => {
@@ -493,5 +504,34 @@ export const updateGroupMessageStatus = async (req, res, next) => {
     })
   } catch (error) {
     next(error)
+  }
+}
+
+export const getGroupPublicKeys = async (req, res, next) => {
+  try {
+    const { groupId } = req.params
+
+    const group = await Group.findById(groupId)
+    if (!group || !group.members.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Group not found or has no members",
+      })
+    }
+
+    // Get public keys of all members
+    const users = await User.find({ _id: { $in: group.members } }).select("username publicKey")
+    const publicKeys = users.map(user => ({
+      userId: user._id,
+      username: user.username,
+      publicKey: user.publicKey,
+    }))
+
+    return res.status(200).json({
+      success: true,
+      data: publicKeys,
+    })
+  } catch (err) {
+    next(err)
   }
 }
