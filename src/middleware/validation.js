@@ -4,6 +4,7 @@ import Joi from "joi"
 const registrationSchema = Joi.object({
   username: Joi.string().min(3).max(30).required(),
   deviceId: Joi.string().required(),
+  publicKey: Joi.string().required(),
 })
 
 // Validation schema for sending messages
