@@ -191,34 +191,49 @@ export const getMessages = async (req, res, next) => {
 
 export const sendTypingIndicator = async (req, res, next) => {
   try {
-    const { senderId, recipientId, isTyping } = req.body
+    const { senderId, recipientId, isTyping } = req.body;
 
-    // Emit typing event via Socket.io
+    if (!senderId || !recipientId) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing senderId or recipientId",
+      });
+    }
+
+    const timestamp = new Date();
+
+    // Emit real-time typing event via Socket.io
     io.to(recipientId).emit("typing_indicator", {
       senderId,
       isTyping,
-      timestamp: new Date(),
-    })
+      timestamp,
+    });
 
-    // Store typing status in Redis with short TTL (5 seconds)
+    const redisKey = `typing:${senderId}:${recipientId}`;
+
     if (isTyping) {
-      await redisClient.setex(
-        `typing:${senderId}:${recipientId}`,
-        5, // 5 seconds
-        "1",
-      )
+      // Extend TTL to 7 seconds (heartbeat-like behavior)
+      await redisClient.setex(redisKey, 7, "1");
     } else {
-      await redisClient.del(`typing:${senderId}:${recipientId}`)
+      // Manually clear if user stops typing or sends message
+      await redisClient.del(redisKey);
     }
 
     return res.status(200).json({
       success: true,
-      message: "Typing indicator sent",
-    })
+      message: "Typing indicator updated",
+      data: {
+        senderId,
+        recipientId,
+        isTyping,
+        timestamp,
+      },
+    });
   } catch (error) {
-    next(error)
+    next(error);
   }
-}
+};
+
 
 export const replyToMessage = async (req, res, next) => {
   try {
