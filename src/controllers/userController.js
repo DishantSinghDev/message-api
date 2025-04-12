@@ -74,6 +74,15 @@ export const blockUser = async (req, res, next) => {
   try {
     const { userId, blockedUserId } = req.body
 
+    // Check if the user is already blocked
+    const isBlocked = await redisClient.sismember(`user:${userId}:blocked`, blockedUserId)
+    if (isBlocked) {
+      return res.status(400).json({
+        success: false,
+        message: "User is already blocked",
+      })
+    }
+
     await User.findByIdAndUpdate(userId, {
       $addToSet: { blockedUsers: blockedUserId },
     })
@@ -94,6 +103,15 @@ export const unblockUser = async (req, res, next) => {
   try {
     const { userId, blockedUserId } = req.body
 
+    // Check if the user is not blocked
+    const isBlocked = await redisClient.sismember(`user:${userId}:blocked`, blockedUserId)
+    if (!isBlocked) {
+      return res.status(400).json({
+        success: false,
+        message: "User is not blocked or already unblocked",
+      })
+    }
+
     await User.findByIdAndUpdate(userId, {
       $pull: { blockedUsers: blockedUserId },
     })
@@ -113,6 +131,15 @@ export const unblockUser = async (req, res, next) => {
 export const muteUser = async (req, res, next) => {
   try {
     const { userId, mutedUserId, duration } = req.body
+
+    // Check if the user is already muted
+    const isMuted = await redisClient.exists(`user:${userId}:muted:${mutedUserId}`)
+    if (isMuted) {
+      return res.status(400).json({
+        success: false,
+        message: "User is already muted",
+      })
+    }
 
     // Duration in seconds, default 24 hours if not specified
     const muteDuration = duration || 86400

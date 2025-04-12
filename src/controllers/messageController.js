@@ -370,7 +370,7 @@ export const deleteMessage = async (req, res, next) => {
 
 export const scheduleMessage = async (req, res, next) => {
   try {
-    const { senderId, recipientId, content, type = "text", mediaId = null, scheduledFor } = req.body
+    const { senderId, recipientId, encryptedContent, type = "text", mediaId = null, scheduledFor } = req.body
 
     // Validate scheduled time
     const scheduledTime = new Date(scheduledFor)
@@ -389,7 +389,7 @@ export const scheduleMessage = async (req, res, next) => {
       messageId,
       senderId,
       recipientId,
-      content,
+      encryptedContent,
       type,
       mediaId,
       scheduledFor: scheduledTime.toISOString(),

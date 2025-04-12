@@ -12,7 +12,7 @@ const messageSchema = Joi.object({
   senderId: Joi.string().required(),
   recipientId: Joi.string().required(),
   encryptedContent: Joi.string().required(),
-  type: Joi.string().valid("text", "image", "video", "audio", "document", "link"),
+  type: Joi.string().valid("text", "image", "video", "audio", "document", "link", "code"),
   mediaId: Joi.string().allow(null, ""),
   replyToId: Joi.string().allow(null, ""),
   scheduledFor: Joi.date().allow(null, ""),
