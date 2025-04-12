@@ -21,7 +21,7 @@ export const processScheduledMessages = async () => {
           body: {
             senderId: message.senderId,
             recipientId: message.recipientId,
-            content: message.content,
+            encryptedContent: message.encryptedContent,
             type: message.type,
             mediaId: message.mediaId,
           },
