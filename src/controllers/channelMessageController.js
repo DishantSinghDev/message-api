@@ -11,7 +11,7 @@ export const sendChannelMessage = async (req, res, next) => {
     const {
       senderId,
       channelId,
-      content, // Should be an encrypted object: { ciphertext, iv, tag?, etc. }
+      content, // Should be an encrypted object: { message, iv, key }
       type = "text",
       mediaId = null,
       replyToId = null,
@@ -21,12 +21,13 @@ export const sendChannelMessage = async (req, res, next) => {
     if (
       !content ||
       typeof content !== "object" ||
-      !content.ciphertext ||
-      !content.iv
+      !content.message ||
+      !content.iv ||
+      !content.key
     ) {
       return res.status(400).json({
         success: false,
-        message: "Encrypted content must include at least ciphertext and iv",
+        message: "Encrypted content must include at least message, iv, and key",
       });
     }
 
