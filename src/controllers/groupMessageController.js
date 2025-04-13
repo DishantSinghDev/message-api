@@ -58,7 +58,7 @@ export const sendGroupMessage = async (req, res, next) => {
     // Validate encryptedContent format
     try {
       const parsed = JSON.parse(encryptedContent);
-      if (!parsed.message || !parsed.keys || typeof parsed.keys !== "object") {
+      if (!parsed.message || !parsed.keys || typeof parsed.keys !== "object" || !parsed.iv) {
         throw new Error("Invalid group encrypted structure");
       }
     } catch {
