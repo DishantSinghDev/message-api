@@ -18,12 +18,13 @@ export const sendChannelMessage = async (req, res, next) => {
     } = req.body;
 
     // Validate encrypted content
+    const parsedContent = JSON.parse(content);
     if (
-      !content ||
-      typeof content !== "object" ||
-      !content.message ||
-      !content.iv ||
-      !content.key
+      !parsedContent ||
+      typeof parsedContent !== "object" ||
+      !parsedContent.message ||
+      !parsedContent.iv ||
+      !parsedContent.key
     ) {
       return res.status(400).json({
         success: false,
