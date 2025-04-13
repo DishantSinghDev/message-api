@@ -118,6 +118,9 @@ export const createCommunity = async (req, res, next) => {
 
     await redisClient.sadd(`user:${createdBy}:communities`, communityId);
 
+    // Cache default channel id in Redis
+    await redisClient.sadd(`community:${communityId}:channels`, generalChannelId);
+
     return res.status(201).json({
       success: true,
       data: {
@@ -159,7 +162,14 @@ export const getCommunityDetails = async (req, res, next) => {
       }
 
       // Get channels from Redis
-      const channelIds = await redisClient.smembers(`community:${communityId}:channels`)
+      let channelIds = await redisClient.smembers(`community:${communityId}:channels`)
+
+      // fetch channel ids from mongoDB if not in Redis
+
+      if (channelIds.length === 0) {
+
+        channelIds = await Channel.find({ communityId }).select("channelId").lean();
+      }
 
       return res.status(200).json({
         success: true,
