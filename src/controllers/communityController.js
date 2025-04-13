@@ -4,7 +4,7 @@ import { User } from "../models/User.js"
 import { redisClient } from "../server.js"
 import { v4 as uuidv4 } from "uuid"
 import { encryptWithPublicKey, generateKeyPair } from "../utils/encryption.js"
-import {CommunityApproval} from "../models/CommunityApproval.js"
+import { CommunityApproval } from "../models/CommunityApproval.js"
 
 // Create a new community
 export const createCommunity = async (req, res, next) => {
@@ -293,7 +293,31 @@ export const joinCommunity = async (req, res, next) => {
 
     if (community.isPrivate && e2eeMode === "true") {
       // 🔐 True E2EE private community - needs approval
-      // Optional: Check if request already exists
+
+      // Check if request already exists
+      const existingRequest = await CommunityApproval.findOne({
+        communityId,
+        userId,
+        status: "pending",
+      });
+
+      if (existingRequest) {
+        return res.status(400).json({
+          success: false,
+          message: "Join request already exists. Awaiting admin approval.",
+        });
+      }
+
+      // Optional: Check if request already exists in Redis
+      const isPendingInRedis = await redisClient.sismember(`community:${communityId}:pendingJoinRequests`, userId);
+      if (isPendingInRedis) {
+        return res.status(400).json({
+          success: false,
+          message: "Join request already exists. Awaiting admin approval.",
+        });
+      }
+
+      // Add to pending join requests
       await redisClient.sadd(`community:${communityId}:pendingJoinRequests`, userId);
 
       // Create a join request
