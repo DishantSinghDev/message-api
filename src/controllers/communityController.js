@@ -388,6 +388,60 @@ export const joinCommunity = async (req, res, next) => {
   }
 };
 
+// Get pending join requests
+export const getPendingJoinRequests = async (req, res, next) => {
+  try {
+    const { communityId } = req.params;
+
+    // Fetch community
+    const community = await Community.findOne({ communityId });
+    if (!community) {
+      return res.status(404).json({
+        success: false,
+        message: "Community not found",
+      });
+    }
+
+    // Check if admin
+    const isAdmin = community.admins.includes(req.userId);
+    if (!isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to view join requests in this community",
+      });
+    }
+
+    // Get pending join requests from Redis
+    let pendingRequests = await redisClient.smembers(`community:${communityId}:pendingJoinRequests`);
+    if (pendingRequests.length === 0) {
+      pendingRequests = await CommunityApproval.find({ communityId, status: "pending" })
+        .populate("userId", "username")
+        .lean();
+      pendingRequests = pendingRequests.map((request) => ({
+        userId: request.userId._id,
+        username: request.userId.username,
+        status: request.status,
+        createdAt: request.createdAt,
+      }));
+    } else {
+      pendingRequests = pendingRequests.map((request) => ({
+        userId: request.userId,
+        username: request.username,
+        status: request.status,
+        createdAt: request.createdAt,
+      }));
+    }
+    // Fetch join requests from MongoDB
+
+    return res.status(200).json({
+      success: true,
+      data: pendingRequests,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 // Approve a join request
 export const approveJoinRequest = async (req, res, next) => {
   try {
@@ -486,7 +540,75 @@ export const approveJoinRequest = async (req, res, next) => {
   }
 };
 
+// Reject a join request
+export const rejectJoinRequest = async (req, res, next) => {
+  try {
+    const { communityId, userId } = req.body;
+    const adminId = req.body.adminId;
 
+    // Fetch community
+    const community = await Community.findOne({ communityId });
+    if (!community) {
+      return res.status(404).json({
+        success: false,
+        message: "Community not found",
+      });
+    }
+
+    // Check if admin is authorized
+    const isAdmin = community.admins.includes(adminId);
+    if (!isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to reject requests in this community",
+      });
+    }
+
+    // Check pending request
+    const joinRequest = await CommunityApproval.findOne({ communityId, userId, status: "pending" });
+    if (!joinRequest) {
+      return res.status(404).json({
+        success: false,
+        message: "Join request not found or already handled",
+      });
+    }
+
+    // Mark request as rejected
+    joinRequest.status = "rejected";
+    joinRequest.updatedAt = new Date();
+    await joinRequest.save();
+
+    // Remove pending join request from Redis
+    await redisClient.srem(`community:${communityId}:pendingJoinRequests`, userId);
+    await redisClient.del(`community:${communityId}:joinRequest:${userId}`);
+    await redisClient.srem(`user:${userId}:pendingJoinRequests`, communityId);
+
+    // Remove from community members if exists
+    const memberIndex = community.members.findIndex((m) => m.userId.toString() === userId);
+    if (memberIndex !== -1) {
+      community.members.splice(memberIndex, 1);
+      community.updatedAt = new Date();
+      await community.save();
+
+      // Remove from Redis
+      await redisClient.srem(`community:${communityId}:members`, userId);
+      await redisClient.srem(`user:${userId}:communities`, communityId);
+    }
+
+
+    return res.status(200).json({
+      success: true,
+      message: "Join request rejected",
+      data: {
+        communityId,
+        userId,
+        status: "rejected",
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
 
 // Leave a community
 export const leaveCommunity = async (req, res, next) => {
