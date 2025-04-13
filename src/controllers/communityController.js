@@ -770,6 +770,16 @@ export const createChannel = async (req, res, next) => {
       }
     }
 
+    // add the creator to the allowed members if the channel is private
+    if (isPrivate) {
+      if (!allowedMembers) {
+        allowedMembers = [];
+      }
+      if (!allowedMembers.includes(userId)) {
+        allowedMembers.push(userId);
+      }
+    }
+
     // Create channel
     const channel = new Channel({
       channelId,
