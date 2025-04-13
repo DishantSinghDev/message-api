@@ -4,6 +4,7 @@ import { User } from "../models/User.js"
 import { redisClient } from "../server.js"
 import { v4 as uuidv4 } from "uuid"
 import { encryptWithPublicKey, generateKeyPair } from "../utils/encryption.js"
+import CommunityApproval from "../models/CommunityApproval.js"
 
 // Create a new community
 export const createCommunity = async (req, res, next) => {
