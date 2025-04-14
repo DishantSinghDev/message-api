@@ -1,11 +1,7 @@
 import { Media } from "../models/Media.js"
-import { sanitizeFile, generateThumbnail } from "../utils/fileUtils.js"
 import { generateFileId } from "../utils/encryption.js"
 import fs from "fs"
 import path from "path"
-import { promisify } from "util"
-
-const unlinkAsync = promisify(fs.unlink)
 
 
 export const uploadMedia = async (req, res, next) => {
@@ -14,23 +10,12 @@ export const uploadMedia = async (req, res, next) => {
 
     if (!req.files) {
       return res.status(400).json({
-        success: false,
-        message: "No encrypted file uploaded",
+      success: false,
+      message: "No encrypted file uploaded",
       });
     }
 
     const file = req.files.file[0];
-
-    // Optional: Run virus scan even on encrypted file (based on your preference)
-    const sanitizationResult = await sanitizeFile(file.path);
-    if (!sanitizationResult.safe) {
-      await unlinkAsync(file.path);
-      return res.status(400).json({
-        success: false,
-        message: "File failed security check",
-        details: sanitizationResult.reason,
-      });
-    }
 
     // Parse encrypted metadata from client (should include type, size, originalName, etc.)
     const {
@@ -38,18 +23,22 @@ export const uploadMedia = async (req, res, next) => {
       originalName,
       size,
       mimeType,
-      thumbnailFileId,
+      iv: fileIv,
+      thumbnailIv: thumbIv,
+      encryptedKey: encryptedAESKey,
     } = JSON.parse(encryptedMetadata); // This must be encrypted and decrypted client-side
 
     const fileId = generateFileId();
 
     // Thumbnail handling
     let thumbnailPath = null;
-    if (thumbnailFileId && req.body.hasThumbnail === "true") {
+    if (req.body.hasThumbnail === "true") {
       const thumbFile = req.files?.thumbnail?.[0];
       if (thumbFile) {
         thumbnailPath = thumbFile.path;
       }
+    } else {
+      thumbnailPath = null;
     }
 
     const media = new Media({
@@ -61,6 +50,9 @@ export const uploadMedia = async (req, res, next) => {
       filePath: file.path,
       thumbnailPath,
       fileType,
+      fileIv,
+      thumbIv,
+      encryptedAESKey,
       uploadedAt: new Date(),
       expiresAt: null,
     });

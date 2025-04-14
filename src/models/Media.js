@@ -33,7 +33,18 @@ const mediaSchema = new mongoose.Schema({
   },
   fileType: {
     type: String,
-    enum: ["image", "video", "audio", "document"],
+    required: true,
+  },
+  fileIv: {
+    type: String,
+    required: true,
+  },
+  thumbIv: {
+    type: String,
+    default: null,
+  },
+  encryptedAESKey: {
+    type: String,
     required: true,
   },
   uploadedAt: {
