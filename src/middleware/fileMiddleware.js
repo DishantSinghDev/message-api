@@ -45,15 +45,17 @@ export const uploadMiddleware = multer({
   storage,
   limits,
   fileFilter,
-}).single("file")
+}).fields([
+  { name: "file", maxCount: 1 },
+  { name: "thumbnail", maxCount: 1 },
+])
 
-
-// Validate file type middleware
+// Middleware to check for required fields
 export const validateFileType = (req, res, next) => {
-  if (!req.file) {
+  if (!req.files || !req.files.file || !req.files.thumbnail) {
     return res.status(400).json({
       success: false,
-      message: "File is required.",
+      message: "File and thumbnail are required.",
     })
   }
   if (!req.files || !req.files.file || !req.files.thumbnail) {
