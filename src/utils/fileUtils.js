@@ -39,13 +39,8 @@ export const sanitizeFile = async (filePath) => {
     // Validate file type
     const type = await fileTypeFromFile(filePath); // Updated function call
     const supportedMimeTypes = [
-      "image/jpeg", "image/png", "image/gif", // Images
-      "video/mp4", "video/3gpp", "video/mpeg", // Videos
-      "audio/mpeg", "audio/aac", "audio/ogg", "audio/amr", // Audio
-      "application/pdf", "application/msword", // Documents
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // DOCX
-      "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // Excel
-      "application/zip", "application/x-rar-compressed", // Archives
+      "application/octet-stream", // Common for encrypted files
+      "application/pgp-encrypted", // PGP encrypted files
     ];
 
     if (!type || !supportedMimeTypes.includes(type.mime)) {
