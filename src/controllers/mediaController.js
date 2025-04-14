@@ -84,27 +84,35 @@ export const uploadMedia = async (req, res, next) => {
 
 export const getMedia = async (req, res, next) => {
   try {
-    const { fileId } = req.params
-    const { thumbnail } = req.query
+    const { fileId } = req.params;
+    const { thumbnail } = req.query;
 
-    // Find media record
-    const media = await Media.findOne({ fileId })
+    // Find the media record in DB
+    const media = await Media.findOne({ fileId });
 
     if (!media) {
       return res.status(404).json({
         success: false,
-        message: "File not found",
-      })
+        message: "Encrypted file not found",
+      });
     }
 
-    // Check if thumbnail is requested and available
-    if (thumbnail === "true" && media.thumbnailPath) {
-      return res.sendFile(path.resolve(media.thumbnailPath))
+    // Choose the path to send
+    const filePath = thumbnail === "true" ? media.thumbnailPath : media.filePath;
+
+    if (!filePath || !fs.existsSync(filePath)) {
+      return res.status(404).json({
+        success: false,
+        message: "Requested file not available",
+      });
     }
 
-    // Send the file
-    return res.sendFile(path.resolve(media.filePath))
+    // Set headers — client should know this is encrypted data
+    res.setHeader("Content-Type", "application/octet-stream");
+    res.setHeader("Content-Disposition", `attachment; filename="${media.originalName}.enc"`);
+
+    return res.sendFile(path.resolve(filePath));
   } catch (error) {
-    next(error)
+    next(error);
   }
-}
+};
