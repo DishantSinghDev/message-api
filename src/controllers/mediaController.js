@@ -19,7 +19,7 @@ export const uploadMedia = async (req, res, next) => {
       });
     }
 
-    const file = req.file;
+    const file = req.files.file[0];
 
     // Optional: Run virus scan even on encrypted file (based on your preference)
     const sanitizationResult = await sanitizeFile(file.path);

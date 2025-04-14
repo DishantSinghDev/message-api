@@ -11,10 +11,10 @@ if (!fs.existsSync(uploadDir)) {
 
 // Configure storage
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
+  destination: (_, __, cb) => {
     cb(null, uploadDir)
   },
-  filename: (req, file, cb) => {
+  filename: (_, file, cb) => {
     const uniqueFilename = `${uuidv4()}${path.extname(file.originalname)}`
     cb(null, uniqueFilename)
   },
@@ -26,35 +26,17 @@ const limits = {
 }
 
 // File filter
-const fileFilter = (req, file, cb) => {
-  // Allow common file types
+const fileFilter = (_, file, cb) => {
+  // Allow only encrypted files
   const allowedMimeTypes = [
-    // Images
-    "image/jpeg",
-    "image/png",
-    "image/gif",
-    "image/webp",
-    // Videos
-    "video/mp4",
-    "video/webm",
-    "video/quicktime",
-    // Audio
-    "audio/mpeg",
-    "audio/wav",
-    "audio/ogg",
-    // Documents
-    "application/pdf",
-    "application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/vnd.ms-excel",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "text/plain",
+    "application/octet-stream", // Common for encrypted files
+    "application/pgp-encrypted", // PGP encrypted files
   ]
 
   if (allowedMimeTypes.includes(file.mimetype)) {
     cb(null, true)
   } else {
-    cb(new Error("Invalid file type"), false)
+    cb(new Error("Invalid file type. Only encrypted files are allowed."), false)
   }
 }
 
@@ -65,16 +47,20 @@ export const uploadMiddleware = multer({
   fileFilter,
 }).single("file")
 
+
 // Validate file type middleware
 export const validateFileType = (req, res, next) => {
   if (!req.file) {
     return res.status(400).json({
       success: false,
-      message: "No file uploaded",
+      message: "File is required.",
     })
   }
-
-  // Additional validation can be added here
-
+  if (!req.files || !req.files.file || !req.files.thumbnail) {
+    return res.status(400).json({
+      success: false,
+      message: "File and thumbnail are required.",
+    })
+  }
   next()
 }
