@@ -6,7 +6,16 @@ import path from "path"
 
 export const uploadMedia = async (req, res, next) => {
   try {
+    // get data from form/data
     const { userId, encryptedMetadata } = req.body;
+    
+    // Check if userId is provided
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: "User ID is required",
+      });
+    }
 
     if (!req.files) {
       return res.status(400).json({
@@ -42,9 +51,9 @@ export const uploadMedia = async (req, res, next) => {
       originalName,
       size,
       mimeType,
-      iv: fileIv,
-      thumbnailIv: thumbIv,
-      encryptedKey: encryptedAESKey,
+      iv,
+      thumbnailIv,
+      encryptedKey,
     } = JSON.parse(encryptedMetadata); // This must be encrypted and decrypted client-side
 
     const fileId = generateFileId();
@@ -69,9 +78,9 @@ export const uploadMedia = async (req, res, next) => {
       filePath: file.path,
       thumbnailPath,
       fileType,
-      fileIv,
-      thumbIv,
-      encryptedAESKey,
+      fileIv: iv,
+      thumbIv: thumbnailIv,
+      encryptedAESKey: encryptedKey,
       uploadedAt: new Date(),
       expiresAt: null,
     });
