@@ -12,7 +12,7 @@ export const uploadMedia = async (req, res, next) => {
   try {
     const { userId, encryptedMetadata } = req.body;
 
-    if (!req.file) {
+    if (!req.files) {
       return res.status(400).json({
         success: false,
         message: "No encrypted file uploaded",
