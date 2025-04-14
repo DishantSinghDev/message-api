@@ -8,7 +8,7 @@ export const uploadMedia = async (req, res, next) => {
   try {
     // get data from form/data
     const { userId, encryptedMetadata } = req.body;
-    
+
     // Check if userId is provided
     if (!userId) {
       return res.status(400).json({
@@ -19,8 +19,8 @@ export const uploadMedia = async (req, res, next) => {
 
     if (!req.files) {
       return res.status(400).json({
-      success: false,
-      message: "No encrypted file uploaded",
+        success: false,
+        message: "No encrypted file uploaded",
       });
     }
 
@@ -34,17 +34,16 @@ export const uploadMedia = async (req, res, next) => {
       });
     }
 
-
     // Parse encrypted metadata from client (should include type, size, originalName, etc.)
+    let parsedMetadata;
     try {
-      JSON.parse(encryptedMetadata);
+      parsedMetadata = JSON.parse(encryptedMetadata);
     } catch (error) {
       return res.status(400).json({
         success: false,
         message: "Invalid encrypted metadata format",
       });
     }
-
 
     const {
       fileType,
@@ -54,7 +53,7 @@ export const uploadMedia = async (req, res, next) => {
       iv,
       thumbnailIv,
       encryptedKey,
-    } = JSON.parse(encryptedMetadata); // This must be encrypted and decrypted client-side
+    } = parsedMetadata; // This must be encrypted and decrypted client-side
 
     const fileId = generateFileId();
 
