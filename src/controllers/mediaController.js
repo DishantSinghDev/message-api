@@ -45,6 +45,8 @@ export const uploadMedia = async (req, res, next) => {
       });
     }
 
+    console.log("Parsed Metadata:", parsedMetadata);
+
     const {
       fileType,
       originalName,
