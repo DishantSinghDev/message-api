@@ -7,80 +7,80 @@ import { promisify } from "util"
 
 const unlinkAsync = promisify(fs.unlink)
 
+
 export const uploadMedia = async (req, res, next) => {
   try {
+    const { userId, encryptedMetadata } = req.body;
+
     if (!req.file) {
       return res.status(400).json({
         success: false,
-        message: "No file uploaded",
-      })
+        message: "No encrypted file uploaded",
+      });
     }
 
-    const { userId } = req.body
-    const file = req.file
+    const file = req.file;
 
-    // Generate unique file ID
-    const fileId = generateFileId()
-
-    // Sanitize file (virus scan, etc.)
-    const sanitizationResult = await sanitizeFile(file.path)
+    // Optional: Run virus scan even on encrypted file (based on your preference)
+    const sanitizationResult = await sanitizeFile(file.path);
     if (!sanitizationResult.safe) {
-      // Delete unsafe file
-      await unlinkAsync(file.path)
-
+      await unlinkAsync(file.path);
       return res.status(400).json({
         success: false,
         message: "File failed security check",
         details: sanitizationResult.reason,
-      })
+      });
     }
 
-    // Determine file type
-    let fileType = "document"
-    if (file.mimetype.startsWith("image/")) {
-      fileType = "image"
-    } else if (file.mimetype.startsWith("video/")) {
-      fileType = "video"
-    } else if (file.mimetype.startsWith("audio/")) {
-      fileType = "audio"
+    // Parse encrypted metadata from client (should include type, size, originalName, etc.)
+    const {
+      fileType,
+      originalName,
+      size,
+      mimeType,
+      thumbnailFileId,
+    } = JSON.parse(encryptedMetadata); // This must be encrypted and decrypted client-side
+
+    const fileId = generateFileId();
+
+    // Thumbnail handling
+    let thumbnailPath = null;
+    if (thumbnailFileId && req.body.hasThumbnail === "true") {
+      const thumbFile = req.files?.thumbnail?.[0];
+      if (thumbFile) {
+        thumbnailPath = thumbFile.path;
+      }
     }
 
-    // Generate thumbnail for images and videos
-    let thumbnailPath = null
-    if (fileType === "image" || fileType === "video") {
-      thumbnailPath = await generateThumbnail(file.path, fileType)
-    }
-
-    // Create media record
     const media = new Media({
       fileId,
       userId,
-      originalName: file.originalname,
-      mimeType: file.mimetype,
-      size: file.size,
+      originalName,
+      mimeType,
+      size,
       filePath: file.path,
       thumbnailPath,
       fileType,
       uploadedAt: new Date(),
-      expiresAt: null, // Set expiration if needed
-    })
+      expiresAt: null,
+    });
 
-    await media.save()
+    await media.save();
 
     return res.status(201).json({
       success: true,
       data: {
         fileId: media.fileId,
         fileType: media.fileType,
-        size: media.size,
         mimeType: media.mimeType,
         uploadedAt: media.uploadedAt,
       },
-    })
+    });
   } catch (error) {
-    next(error)
+    next(error);
   }
-}
+};
+
 
 export const getMedia = async (req, res, next) => {
   try {
