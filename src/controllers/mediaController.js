@@ -17,7 +17,26 @@ export const uploadMedia = async (req, res, next) => {
 
     const file = req.files.file[0];
 
+    // check the encryptedMetadata
+    if (!encryptedMetadata) {
+      return res.status(400).json({
+        success: false,
+        message: "Encrypted metadata is required",
+      });
+    }
+
+
     // Parse encrypted metadata from client (should include type, size, originalName, etc.)
+    try {
+      JSON.parse(encryptedMetadata);
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid encrypted metadata format",
+      });
+    }
+
+
     const {
       fileType,
       originalName,
@@ -32,7 +51,7 @@ export const uploadMedia = async (req, res, next) => {
 
     // Thumbnail handling
     let thumbnailPath = null;
-    if (req.body.hasThumbnail === "true") {
+    if (req.body.hasThumbnail) {
       const thumbFile = req.files?.thumbnail?.[0];
       if (thumbFile) {
         thumbnailPath = thumbFile.path;
