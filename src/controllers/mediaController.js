@@ -57,6 +57,8 @@ export const uploadMedia = async (req, res, next) => {
       encryptedKey,
     } = parsedMetadata; // This must be encrypted and decrypted client-side
 
+    console.log(fileType, originalName,size,mimeType, iv, thumbnailIv, encryptedKey)
+
     // Validate required fields in parsedMetadata
     if (!fileType || !originalName || !size || !mimeType || !iv || !encryptedKey) {
       return res.status(400).json({
