@@ -42,6 +42,7 @@ export const uploadMedia = async (req, res, next) => {
     try {
       parsedMetadata = JSON.parse(encryptedMetadata);
       console.log("Parsed Metadata:", parsedMetadata);
+      console.log(typeof parsedMetadata);
     } catch (err) {
       return res.status(400).json({
         success: false,
