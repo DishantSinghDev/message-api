@@ -36,16 +36,20 @@ export const uploadMedia = async (req, res, next) => {
     }
 
     // Parse encrypted metadata from client (should include type, size, originalName, etc.)
+
+    // Parse metadata safely
     let parsedMetadata;
     try {
       parsedMetadata = JSON.parse(encryptedMetadata);
-    } catch (error) {
+      console.log("Parsed Metadata:", parsedMetadata);
+    } catch (err) {
       return res.status(400).json({
         success: false,
-        message: "Invalid encrypted metadata format",
+        message: "Invalid JSON in encryptedMetadata",
       });
     }
 
+    // Destructure safely
     const {
       fileType,
       originalName,
@@ -56,13 +60,24 @@ export const uploadMedia = async (req, res, next) => {
       encryptedKey,
     } = parsedMetadata;
 
-    console.log("Parsed Metadata:", typeof parsedMetadata,encryptedMetadata);
-    console.log(fileType, originalName, size, mimeType, iv, thumbnailIv, encryptedKey);
+    // Check all required fields
+    const requiredFields = {
+      fileType,
+      originalName,
+      size,
+      mimeType,
+      iv,
+      encryptedKey,
+    };
 
-    if (!fileType || !originalName || !size || !mimeType || !iv || !encryptedKey) {
+    const missingFields = Object.entries(requiredFields)
+      .filter(([_, v]) => !v)
+      .map(([k]) => k);
+
+    if (missingFields.length) {
       return res.status(400).json({
-      success: false,
-      message: "Missing required metadata fields",
+        success: false,
+        message: `Missing metadata fields: ${missingFields.join(", ")}`,
       });
     }
 
