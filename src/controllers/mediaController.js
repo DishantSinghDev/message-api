@@ -155,7 +155,26 @@ export const getMedia = async (req, res, next) => {
       });
     }
 
-    return res.sendFile(path.resolve(filePath));
+    // Send media details along with the file
+    return res.status(200).json({
+      success: true,
+      data: {
+        fileId: media.fileId,
+        fileType: media.fileType,
+        mimeType: media.mimeType,
+        size: media.size,
+        originalName: media.originalName,
+        thumbnailPath: media.thumbnailPath,
+        filePath: media.filePath,
+        fileIv: media.fileIv,
+        thumbIv: media.thumbIv,
+        encryptedAESKey: media.encryptedAESKey,
+        userId: media.userId,
+        uploadedAt: media.uploadedAt,
+        expiresAt: media.expiresAt,
+      },
+      file: path.resolve(filePath),
+    });
   } catch (error) {
     next(error);
   }
