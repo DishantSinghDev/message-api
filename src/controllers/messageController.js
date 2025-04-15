@@ -297,12 +297,6 @@ export const addReaction = async (req, res, next) => {
       reaction,
     })
 
-    io.to(message.senderId.toString()).emit("message_reaction", {
-      messageId,
-      userId,
-      reaction,
-    })
-
     return res.status(200).json({
       success: true,
       data: {
