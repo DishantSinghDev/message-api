@@ -144,7 +144,9 @@ export const getMedia = async (req, res, next) => {
     }
 
     // Choose the path to send
-    const filePath = thumbnail ? media.thumbnailPath : media.filePath;
+    const filePath = thumbnail === "true" ? media.thumbnailPath : media.filePath;
+
+    console.log("File Path:", filePath);
 
     if (!filePath || !fs.existsSync(filePath)) {
       return res.status(404).json({
