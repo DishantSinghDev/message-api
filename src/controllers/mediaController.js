@@ -144,7 +144,7 @@ export const getMedia = async (req, res, next) => {
     }
 
     // Choose the path to send
-    const filePath = thumbnail === "true" ? media.thumbnailPath : media.filePath;
+    const filePath = thumbnail ? media.thumbnailPath : media.filePath;
 
     if (!filePath || !fs.existsSync(filePath)) {
       return res.status(404).json({
@@ -152,10 +152,6 @@ export const getMedia = async (req, res, next) => {
         message: "Requested file not available",
       });
     }
-
-    // Set headers — client should know this is encrypted data
-    res.setHeader("Content-Type", "application/octet-stream");
-    res.setHeader("Content-Disposition", `attachment; filename="${media.originalName}.enc"`);
 
     return res.sendFile(path.resolve(filePath));
   } catch (error) {
