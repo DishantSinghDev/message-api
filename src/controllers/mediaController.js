@@ -45,8 +45,6 @@ export const uploadMedia = async (req, res, next) => {
       });
     }
 
-    console.log("Parsed Metadata:", parsedMetadata);
-
     const {
       fileType,
       originalName,
@@ -55,9 +53,16 @@ export const uploadMedia = async (req, res, next) => {
       iv,
       thumbnailIv,
       encryptedKey,
-    } = parsedMetadata; // This must be encrypted and decrypted client-side
+    } = parsedMetadata;
 
-    console.log(fileType, originalName,size,mimeType, iv, thumbnailIv, encryptedKey)
+    if (!fileType || !originalName || !size || !mimeType || !iv || !encryptedKey) {
+      return res.status(400).json({
+      success: false,
+      message: "Missing required metadata fields",
+      });
+    }
+
+    console.log(fileType, originalName, size, mimeType, iv, thumbnailIv, encryptedKey);
 
     // Validate required fields in parsedMetadata
     if (!fileType || !originalName || !size || !mimeType || !iv || !encryptedKey) {
