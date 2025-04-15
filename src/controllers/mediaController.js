@@ -55,6 +55,9 @@ export const uploadMedia = async (req, res, next) => {
       encryptedKey,
     } = parsedMetadata;
 
+    console.log("Parsed Metadata:", parsedMetadata);
+    console.log(fileType, originalName, size, mimeType, iv, thumbnailIv, encryptedKey);
+
     if (!fileType || !originalName || !size || !mimeType || !iv || !encryptedKey) {
       return res.status(400).json({
       success: false,
