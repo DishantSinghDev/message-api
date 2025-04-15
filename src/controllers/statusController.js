@@ -158,7 +158,7 @@ export const createStatus = async (req, res, next) => {
     }
 
     // Validate required fields based on type
-    if (type === "text" && !content) {
+    if (type === "text" && !content ) {
       return res.status(400).json({
         success: false,
         message: "Encrypted content is required for text status",
@@ -235,6 +235,8 @@ export const createStatus = async (req, res, next) => {
       backgroundColor: status.backgroundColor,
       fontStyle: status.fontStyle,
       visibleTo: status.visibleTo,
+      specificUsers: status.specificUsers,
+      excludedUsers: status.excludedUsers,
       encryptedKeys: status.encryptedKeys, // Encrypted keys
       createdAt: status.createdAt.toISOString(),
       expiresAt: status.expiresAt.toISOString(),
