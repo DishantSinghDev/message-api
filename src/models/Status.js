@@ -74,6 +74,11 @@ const statusSchema = new mongoose.Schema({
       return date
     },
   },
+  encryptedKeys:{
+    type: Map,
+    of: String,
+    default: {},
+  }
 })
 
 // Indexes for faster queries

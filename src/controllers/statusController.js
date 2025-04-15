@@ -134,7 +134,18 @@ export const getMessageStatus = async (req, res, next) => {
 // Create a new status
 export const createStatus = async (req, res, next) => {
   try {
-    const { type, content, mediaId, backgroundColor, fontStyle, visibleTo, specificUsers, expiresIn } = req.body
+    const {
+      type,
+      content, // Encrypted message
+      mediaId,
+      backgroundColor,
+      fontStyle,
+      visibleTo,
+      specificUsers,
+      expiresIn,
+      contacts,
+      encryptedKeys, // Encrypted keys mapped to userIds
+    } = req.body
     const userId = req.body.userId
 
     // Validate user exists
@@ -150,7 +161,7 @@ export const createStatus = async (req, res, next) => {
     if (type === "text" && !content) {
       return res.status(400).json({
         success: false,
-        message: "Content is required for text status",
+        message: "Encrypted content is required for text status",
       })
     }
 
@@ -159,6 +170,33 @@ export const createStatus = async (req, res, next) => {
         success: false,
         message: "Media ID is required for image or video status",
       })
+    }
+
+    // Validate encryptedKeys for specific visibility
+    if (visibleTo === "specific" && (!specificUsers || specificUsers.length === 0)) {
+      return res.status(400).json({
+        success: false,
+        message: "Specific users must be provided for 'specific' visibility",
+      })
+    }
+
+    if (visibleTo === "specific" && (!encryptedKeys || Object.keys(encryptedKeys).length === 0)) {
+      return res.status(400).json({
+        success: false,
+        message: "Encrypted keys must be provided for specific users",
+      })
+    }
+
+    // Ensure encryptedKeys match specificUsers
+    if (visibleTo === "specific") {
+      for (const userId of specificUsers) {
+        if (!encryptedKeys[userId]) {
+          return res.status(400).json({
+            success: false,
+            message: `Encrypted key missing for userId: ${userId}`,
+          })
+        }
+      }
     }
 
     // Generate unique status ID
@@ -174,12 +212,13 @@ export const createStatus = async (req, res, next) => {
       statusId,
       userId,
       type,
-      content: content || null,
+      content: content || null, // Encrypted content
       mediaId: mediaId || null,
       backgroundColor: backgroundColor || null,
       fontStyle: fontStyle || "default",
       visibleTo: visibleTo || "all",
       specificUsers: visibleTo === "specific" ? specificUsers || [] : [],
+      encryptedKeys: visibleTo === "specific" ? encryptedKeys : {}, // Store encrypted keys
       createdAt: new Date(),
       expiresAt,
     })
@@ -191,11 +230,12 @@ export const createStatus = async (req, res, next) => {
       statusId: status.statusId,
       userId: status.userId.toString(),
       type: status.type,
-      content: status.content,
+      content: status.content, // Encrypted content
       mediaId: status.mediaId,
       backgroundColor: status.backgroundColor,
       fontStyle: status.fontStyle,
       visibleTo: status.visibleTo,
+      encryptedKeys: status.encryptedKeys, // Encrypted keys
       createdAt: status.createdAt.toISOString(),
       expiresAt: status.expiresAt.toISOString(),
     }
@@ -208,17 +248,14 @@ export const createStatus = async (req, res, next) => {
     await redisClient.zadd(`user:${userId}:statuses`, Date.now(), statusId)
 
     // Notify contacts about new status
-    // In a real app, you'd get the user's contacts and filter based on visibility settings
     let notifyUserIds = []
 
     if (visibleTo === "all") {
       // Notify all contacts (in a real app, you'd get the user's contacts)
-      // For demo, we'll just notify all users
       const allUsers = await User.find({ _id: { $ne: userId } }).select("_id")
       notifyUserIds = allUsers.map((u) => u._id.toString())
     } else if (visibleTo === "contacts") {
       // In a real app, you'd get the user's contacts
-      // For demo, we'll just notify all users
       const allUsers = await User.find({ _id: { $ne: userId } }).select("_id")
       notifyUserIds = allUsers.map((u) => u._id.toString())
     } else if (visibleTo === "specific" && specificUsers && specificUsers.length > 0) {
@@ -286,6 +323,10 @@ export const getUserStatuses = async (req, res, next) => {
           ) {
             // Check if not in excluded users
             if (!parsedStatus.excludedUsers || !parsedStatus.excludedUsers.includes(viewerId)) {
+              // Include encryptedKey for the viewer if specific visibility
+              if (parsedStatus.visibleTo === "specific") {
+                parsedStatus.encryptedKey = parsedStatus.encryptedKeys[viewerId] || null
+              }
               statusesData.push(parsedStatus)
             }
           }
@@ -312,7 +353,15 @@ export const getUserStatuses = async (req, res, next) => {
 
         return res.status(200).json({
           success: true,
-          data: statusesData,
+          data: statusesData.map((status) => ({
+            statusId: status.statusId,
+            userId: status.userId,
+            type: status.type,
+            content: status.content, // Encrypted content
+            encryptedKey: status.encryptedKey || null, // Encrypted key for the viewer
+            createdAt: status.createdAt,
+            expiresAt: status.expiresAt,
+          })),
         })
       }
     }
@@ -368,6 +417,7 @@ export const getUserStatuses = async (req, res, next) => {
           backgroundColor: status.backgroundColor,
           fontStyle: status.fontStyle,
           visibleTo: status.visibleTo,
+          encryptedKeys: status.encryptedKeys, // Include encrypted keys
           createdAt: status.createdAt.toISOString(),
           expiresAt: status.expiresAt.toISOString(),
         }
@@ -383,10 +433,8 @@ export const getUserStatuses = async (req, res, next) => {
         statusId: s.statusId,
         userId: s.userId.toString(),
         type: s.type,
-        content: s.content,
-        mediaId: s.mediaId,
-        backgroundColor: s.backgroundColor,
-        fontStyle: s.fontStyle,
+        content: s.content, // Encrypted content
+        encryptedKey: s.encryptedKeys ? s.encryptedKeys[viewerId] || null : null, // Encrypted key for the viewer
         createdAt: s.createdAt,
         expiresAt: s.expiresAt,
       })),
