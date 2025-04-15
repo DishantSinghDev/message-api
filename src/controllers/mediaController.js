@@ -1,3 +1,4 @@
+
 import { Media } from "../models/Media.js"
 import { generateFileId } from "../utils/encryption.js"
 import fs from "fs"
@@ -55,7 +56,7 @@ export const uploadMedia = async (req, res, next) => {
       encryptedKey,
     } = parsedMetadata;
 
-    console.log("Parsed Metadata:", parsedMetadata,encryptedMetadata);
+    console.log("Parsed Metadata:", typeof parsedMetadata,encryptedMetadata);
     console.log(fileType, originalName, size, mimeType, iv, thumbnailIv, encryptedKey);
 
     if (!fileType || !originalName || !size || !mimeType || !iv || !encryptedKey) {
