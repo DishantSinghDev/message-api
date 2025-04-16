@@ -512,7 +512,7 @@ export const getGroupPublicKeys = async (req, res, next) => {
   try {
     const { groupId } = req.params
 
-    const group = await Group.findById(groupId)
+    const group = await Group.findOne({groupId})
     if (!group || !group.members.length) {
       return res.status(404).json({
         success: false,
