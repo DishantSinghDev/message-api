@@ -430,13 +430,25 @@ export const getUserPublicKey = async (req, res, next) => {
   try {
     const { userId } = req.params
 
+    // Validate userId
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing userId",
+      })
+    }
+
     const user = await User.findOne({ userId }).select("publicKey")
+
+    console.log(user)
     if (!user || !user.publicKey) {
       return res.status(404).json({
         success: false,
         message: "User or public key not found",
       })
     }
+
+    
 
     return res.status(200).json({
       success: true,
