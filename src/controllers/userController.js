@@ -160,3 +160,44 @@ export const muteUser = async (req, res, next) => {
     next(error)
   }
 }
+
+
+// function to get users details with his username
+export const getUserDetails = async (req, res, next) => {
+  try {
+    const { username } = req.params
+
+    // Check if user exists in Redis cache
+    const cachedUser = await redisClient.hgetall(`user:${username}`)
+    if (cachedUser) {
+      return res.status(200).json({
+        success: true,
+        data: cachedUser,
+      })
+    }
+
+    // If not in cache, fetch from MongoDB
+    const user = await User.findOne({ username })
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      })
+    }
+
+    // Cache the user data in Redis
+    await redisClient.hmset(
+      `user:${username}`,
+      "username", user.username,
+      "publicKey", user.publicKey,
+      "status", user.status
+    )
+
+    return res.status(200).json({
+      success: true,
+      data: user,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
