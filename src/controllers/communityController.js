@@ -1033,3 +1033,44 @@ export const getUserCommunities = async (req, res, next) => {
     next(error)
   }
 }
+
+// Get all users of a community
+export const getCommunityUsers = async (req, res, next) => {
+  try {
+    const { communityId } = req.params;
+    const userId = req.query.userId;
+
+    // Check if user is a member
+    const isMember = await redisClient.sismember(`community:${communityId}:members`, userId);
+    if (!isMember) {
+      return res.status(403).json({
+        success: false,
+        message: "Not a member of this community",
+      });
+    }
+
+    // Validate community exists
+    const community = await Community.findOne({ communityId }).populate("members.userId", "username");
+    if (!community) {
+      return res.status(404).json({
+        success: false,
+        message: "Community not found",
+      });
+    }
+
+    // Map members to return user details
+    const users = community.members.map((member) => ({
+      userId: member.userId._id,
+      username: member.userId.username,
+      role: member.role,
+      joinedAt: member.joinedAt,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      data: users,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

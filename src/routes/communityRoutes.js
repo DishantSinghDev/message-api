@@ -9,7 +9,8 @@ import {
   getUserCommunities,
   approveJoinRequest,
   getPendingJoinRequests,
-  rejectJoinRequest
+  rejectJoinRequest,
+  getCommunityUsers
 } from "../controllers/communityController.js"
 import { rateLimiter } from "../middleware/rateLimiter.js"
 
@@ -25,5 +26,6 @@ router.post("/leave", rateLimiter("communityAction", 10, 60), leaveCommunity)
 router.post("/channel/create", rateLimiter("createChannel", 10, 60), createChannel)
 router.get("/:communityId/channels", rateLimiter("getChannels", 20, 60), getCommunityChannels)
 router.get("/user/:userId", rateLimiter("getUserCommunities", 20, 60), getUserCommunities)
+router.get("/users/:communityId", rateLimiter("getCommunityUsers", 20, 60), getCommunityUsers)
 
 export default router

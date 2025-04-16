@@ -428,9 +428,9 @@ export const scheduleMessage = async (req, res, next) => {
 
 export const getUserPublicKey = async (req, res, next) => {
   try {
-    const { username } = req.params
+    const { userId } = req.params
 
-    const user = await User.findOne({ username }).select("publicKey")
+    const user = await User.findOne({ userId }).select("publicKey")
     if (!user || !user.publicKey) {
       return res.status(404).json({
         success: false,
@@ -441,7 +441,7 @@ export const getUserPublicKey = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       data: {
-        username,
+        userId,
         publicKey: user.publicKey,
       },
     })
