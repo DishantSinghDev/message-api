@@ -4,6 +4,7 @@ import { User } from "../models/User.js"
 import { redisClient } from "../server.js"
 import { io } from "../server.js"
 import { generateMessageHash, generateMessageId } from "../utils/encryption.js"
+import { getUserStats } from "./analyticsController.js"
 
 // Send message to a group
 export const sendGroupMessage = async (req, res, next) => {
@@ -520,7 +521,16 @@ export const getGroupPublicKeys = async (req, res, next) => {
     }
 
     // Get public keys of all members
-    const users = await User.find({ _id: { $in: group.members } }).select("username publicKey")
+    let users = []
+    for (const member of group.members) {
+      users = await User.find({ _id: { $in: member.userId } }).select("username publicKey")
+      if (!users) {
+        return res.status(404).json({
+          success: false,
+          message: `User with ID ${member.userId} not found`,
+        })
+      }
+    }
     const publicKeys = users.map(user => ({
       userId: user._id,
       username: user.username,
