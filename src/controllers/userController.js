@@ -51,7 +51,7 @@ export const registerUser = async (req, res, next) => {
 
     // Cache user data in Redis
     await redisClient.hset(
-      `user:${user._id}`,
+      `userId:${user._id}`,
       "username", username,
       "publicKey", publicKey,
       "status", "online"

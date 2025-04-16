@@ -438,7 +438,7 @@ export const getUserPublicKey = async (req, res, next) => {
       })
     }
 
-    const user = await User.findOne({ userId }).select("publicKey")
+    const user = await User.findOne({ _id: { $ne: userId } }).select("publicKey")
 
     console.log(user)
     if (!user || !user.publicKey) {
