@@ -474,3 +474,44 @@ export const getUserPublicKey = async (req, res, next) => {
     next(err);
   }
 };
+
+
+// a function for getting a message by its ID
+export const getAMessage = async (req, res, next) => {
+  try {
+    const { messageId } = req.params
+
+    // Check Redis cache first
+    const cachedMessage = await redisClient.get(`message:${messageId}`)
+    if (cachedMessage) {
+      return res.status(200).json({
+        success: true,
+        data: JSON.parse(cachedMessage),
+      })
+    }
+
+    // Fetch from database if not in cache
+    const message = await Message.findOne({ messageId })
+
+    if (!message) {
+      return res.status(404).json({
+        success: false,
+        message: "Message not found",
+      })
+    }
+
+    // Cache the message in Redis for future requests
+    await redisClient.setex(
+      `message:${messageId}`,
+      2592000, // 30 days
+      JSON.stringify(message)
+    )
+
+    return res.status(200).json({
+      success: true,
+      data: message,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
