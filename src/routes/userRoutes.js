@@ -9,6 +9,6 @@ router.post("/register", validateRegistration, rateLimiter("register", 5, 60), r
 router.post("/block", rateLimiter("userAction", 10, 60), blockUser)
 router.post("/unblock", rateLimiter("userAction", 10, 60), unblockUser)
 router.post("/mute", rateLimiter("userAction", 10, 60), muteUser)
-router.get("/details/:username", rateLimiter("userAction", 10, 60), getUserDetails)
+router.get("/:username", rateLimiter("userAction", 10, 60), getUserDetails)
 
 export default router
