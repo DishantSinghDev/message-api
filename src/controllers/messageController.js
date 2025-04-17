@@ -206,6 +206,7 @@ export const sendTypingIndicator = async (req, res, next) => {
     // Emit real-time typing event via Socket.io
     io.to(recipientId).emit("typing_indicator", {
       senderId,
+      recipientId,
       isTyping,
       timestamp,
     });
