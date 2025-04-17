@@ -172,14 +172,16 @@ export const getUserDetails = async (req, res, next) => {
     // Cache the user data in Redis
     await redisClient.hmset(
       `user:${username}`,
+      "userId", user._id,
       "username", user.username,
       "publicKey", user.publicKey,
       "status", user.status
+
     )
 
     return res.status(200).json({
       success: true,
-      data: user,
+      data: {userId: user._id, username: user.username, publicKey: user.publicKey, status: user.status},
     })
   } catch (error) {
     next(error)
