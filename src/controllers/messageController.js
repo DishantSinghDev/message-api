@@ -92,6 +92,7 @@ export const sendMessage = async (req, res, next) => {
     io.to(recipientId).emit("new_message", {
       messageId,
       senderId,
+      recipientId,
       type,
       mediaId,
       replyToId,
