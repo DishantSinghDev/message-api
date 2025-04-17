@@ -454,7 +454,7 @@ export const getUserPublicKey = async (req, res, next) => {
 
     // Fetch from database if not in cache
     const user = await User.findOne({ _id: userId }).select("publicKey");
-
+    console.log(user)
     if (!user || !user.publicKey) {
       return res.status(404).json({
         success: false,
