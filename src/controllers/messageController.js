@@ -428,26 +428,40 @@ export const scheduleMessage = async (req, res, next) => {
 
 export const getUserPublicKey = async (req, res, next) => {
   try {
-    const { userId } = req.params
+    const { userId } = req.params;
 
     // Validate userId
     if (!userId) {
       return res.status(400).json({
         success: false,
         message: "Missing userId",
-      })
+      });
     }
 
-    const user = await User.findOne({ _id: { $ne: userId } }).select("publicKey")
+    // Check Redis cache first
+    const cachedPublicKey = await redisClient.get(`user:${userId}:publicKey`);
+    if (cachedPublicKey) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          userId,
+          publicKey: cachedPublicKey,
+        },
+      });
+    }
+
+    // Fetch from database if not in cache
+    const user = await User.findOne({ _id: userId }).select("publicKey");
 
     if (!user || !user.publicKey) {
       return res.status(404).json({
         success: false,
         message: "User or public key not found",
-      })
+      });
     }
 
-    
+    // Cache the public key in Redis for future requests
+    await redisClient.setex(`user:${userId}:publicKey`, 3600, user.publicKey); // Cache for 1 hour
 
     return res.status(200).json({
       success: true,
@@ -455,8 +469,8 @@ export const getUserPublicKey = async (req, res, next) => {
         userId,
         publicKey: user.publicKey,
       },
-    })
+    });
   } catch (err) {
-    next(err)
+    next(err);
   }
-}
+};
