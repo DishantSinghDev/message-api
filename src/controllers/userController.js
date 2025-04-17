@@ -163,6 +163,7 @@ export const getUserDetails = async (req, res, next) => {
 
     // If not in cache, fetch from MongoDB
     const user = await User.findOne({ username })
+    console.log("MongoDB User:", user)
     if (!user) {
       return res.status(404).json({
         success: false,
