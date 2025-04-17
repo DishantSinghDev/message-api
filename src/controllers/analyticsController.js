@@ -73,6 +73,7 @@ export const getActiveChats = async (req, res, next) => {
 
       for (const key of chatKeys) {
         const recipientId = key.split(":")[2]
+        const username = await redisClient.get(`user:${recipientId}:username`)
 
         // Get last message timestamp
         const lastMessageId = await redisClient.zrevrange(key, 0, 0)
@@ -85,6 +86,7 @@ export const getActiveChats = async (req, res, next) => {
 
             activeChats.push({
               userId: recipientId,
+              username,
               lastMessageAt: parsedData.sentAt,
               lastMessageId: lastMessageId[0],
             })
