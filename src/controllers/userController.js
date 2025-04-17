@@ -1,8 +1,6 @@
 import { User } from "../models/User.js"
-import { generateKeyPair } from "../utils/encryption.js"
 import { redisClient } from "../server.js"
 
-import crypto from "crypto"
 
 export const registerUser = async (req, res, next) => {
   try {
