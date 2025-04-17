@@ -150,6 +150,15 @@ export const muteUser = async (req, res, next) => {
 export const getUserDetails = async (req, res, next) => {
   try {
     const { username } = req.params
+    console.log("Username:", username)
+
+    // Basic check: Ensure username is present
+    if (!username || typeof username !== "string") {
+      return res.status(400).json({
+        success: false,
+        message: "Username is required and must be a string",
+      })
+    }
 
     // Check if user exists in Redis cache
     const cachedUser = await redisClient.hgetall(`user:${username}`)
@@ -172,9 +181,9 @@ export const getUserDetails = async (req, res, next) => {
     }
 
     // Cache the user data in Redis
-    await redisClient.hmset(
-      `user:${username}`,
-      "userId", user._id,
+    await redisClient.hset(
+      `user:${user.username}`,
+      "userId", user._id.toString(),
       "username", user.username,
       "publicKey", user.publicKey,
       "status", user.status
