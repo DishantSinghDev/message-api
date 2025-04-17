@@ -153,6 +153,7 @@ export const getUserDetails = async (req, res, next) => {
 
     // Check if user exists in Redis cache
     const cachedUser = await redisClient.hgetall(`user:${username}`)
+    console.log("Cached User:", cachedUser)
     if (Object.keys(cachedUser).length > 0) {
       return res.status(200).json({
         success: true,
@@ -176,7 +177,6 @@ export const getUserDetails = async (req, res, next) => {
       "username", user.username,
       "publicKey", user.publicKey,
       "status", user.status
-
     )
 
     return res.status(200).json({
