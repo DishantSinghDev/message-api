@@ -16,20 +16,6 @@ export const registerUser = async (req, res, next) => {
       })
     }
 
-    // Validate the RSA public key
-    try {
-      crypto.createPublicKey({
-        key: publicKey,
-        format: "pem",
-        type: "spki", // expected for public key
-      })
-    } catch (err) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid RSA public key format",
-      })
-    }
-
     // Check if user already exists
     const existingUser = await User.findOne({ username })
     if (existingUser) {
